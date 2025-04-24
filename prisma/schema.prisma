@@ -10,7 +10,6 @@ datasource db {
 enum Role {
   USER
   ADMIN
-  SUPER_ADMIN
 }
 
 enum PostType {
@@ -18,293 +17,209 @@ enum PostType {
   FOUND
 }
 
-enum PaymentMethod {
-  CREDIT_CARD
-  BANK_TRANSFER
-  MOMO
-  ZALOPAY
-  VNPAY
-  OTHER
+enum PostStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
-enum PaymentStatus {
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum ReportStatus {
   PENDING
-  COMPLETED
-  FAILED
-  REFUNDED
+  RESOLVED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
 }
 
 model User {
-  id            String         @id @default(uuid())
-  email         String         @unique
-  password      String
-  isVerified    Boolean        @default(false)
+  id            Int            @id @default(autoincrement())
+  email         String         @unique @db.VarChar(255)
+  password      String         @db.VarChar(255)
+  name          String         @db.VarChar(100)
   role          Role           @default(USER)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  profile       Profile?
+  avatarUrl     String?        @db.VarChar(255)
   posts         Post[]
-  payments      Payment[]
-  notifications Notification[]
+  articles      Article[]
   comments      Comment[]
   likes         Like[]
-  admin         Admin?
-  feedbacks     Feedback[]
-  reports       Report[]
-  activityLogs  ActivityLog[]
-}
-
-model Profile {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  fullName  String
-  phone     String?
-  address   String?
-  avatar    String?
-  bio       String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reports       Report[]       @relation("UserReports")
+  notifications Notification[]
+  payments      Payment[]
+  subscriptions Subscription[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model Post {
-  id               String          @id @default(uuid())
-  title            String
-  postType         PostType
-  isApproved       Boolean         @default(false)
-  viewCount        Int             @default(0)
-  userId           String
-  itemId           String          @unique
-  servicePackageId String?
-  statusId         String
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  item             Item            @relation(fields: [itemId], references: [id])
-  servicePackage   ServicePackage? @relation(fields: [servicePackageId], references: [id])
-  status           Status          @relation(fields: [statusId], references: [id])
-  comments         Comment[]
-  likes            Like[]
-  notifications    Notification[]
-  payments         Payment[]
-  postTags         PostTag[]
-  lostConnections  Connection[]    @relation("LostPost")
-  foundConnections Connection[]    @relation("FoundPost")
-  reports          Report[]
+  id            Int            @id @default(autoincrement())
+  title         String         @db.VarChar(255)
+  slug          String         @unique @db.VarChar(255)
+  content       String         @db.Text
+  postType      PostType
+  status        PostStatus     @default(PENDING)
+  location      String?        @db.VarChar(255)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        Int
+  comments      Comment[]
+  likes         Like[]
+  tags          Tag[]          @relation("PostTags")
+  media         Media[]
+  reports       Report[]       @relation("PostReports")
+  subscriptions Subscription[]
+  isPromoted    Boolean        @default(false)
+  promoteUntil  DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 
-  @@index([postType])
   @@index([userId])
-  @@index([statusId])
-}
-
-model Item {
-  id          String   @id @default(uuid())
-  name        String
-  description String
-  images      Json
-  categoryId  String
-  locationId  String
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  category    Category @relation(fields: [categoryId], references: [id])
-  location    Location @relation(fields: [locationId], references: [id])
-  post        Post?
-  media       Media[]
-}
-
-model Category {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  items     Item[]
-}
-
-model Location {
-  id          String   @id @default(uuid())
-  name        String
-  address     String
-  coordinates Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  items       Item[]
-}
-
-model ServicePackage {
-  id          String     @id @default(uuid())
-  name        String
-  description String
-  price       Float
-  duration    Int
-  priority    Int
-  features    Json
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
-  posts       Post[]
-  payments    Payment[]
-  feedbacks   Feedback[]
-}
-
-model Payment {
-  id               String         @id @default(uuid())
-  amount           Float
-  paymentMethod    PaymentMethod
-  status           PaymentStatus
-  transactionCode  String?
-  userId           String
-  servicePackageId String
-  postId           String         @unique
-  createdAt        DateTime       @default(now())
-  updatedAt        DateTime       @updatedAt
-  user             User           @relation(fields: [userId], references: [id])
-  servicePackage   ServicePackage @relation(fields: [servicePackageId], references: [id])
-  post             Post           @relation(fields: [postId], references: [id])
-}
-
-model Notification {
-  id        String   @id @default(uuid())
-  content   String
-  isRead    Boolean  @default(false)
-  type      String
-  userId    String
-  postId    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post      Post?    @relation(fields: [postId], references: [id])
+  @@index([postType, location])
 }
 
 model Article {
-  id        String    @id @default(uuid())
-  title     String
-  content   String
-  thumbnail String?
-  authorId  String
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  id        Int           @id @default(autoincrement())
+  title     String        @db.VarChar(255)
+  slug      String        @unique @db.VarChar(255)
+  content   String        @db.Text
+  excerpt   String?       @db.Text
+  status    ArticleStatus @default(DRAFT)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
   comments  Comment[]
   likes     Like[]
+  tags      Tag[]         @relation("ArticleTags")
+  media     Media[]
+  reports   Report[]      @relation("ArticleReports")
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([status])
 }
 
 model Comment {
-  id        String   @id @default(uuid())
-  content   String
-  userId    String
-  postId    String?
-  articleId String?
+  id        Int      @id @default(autoincrement())
+  content   String   @db.Text
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    Int?
+  article   Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  articleId Int?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
-  article   Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
-  reports   Report[]
+
+  @@index([postId])
+  @@index([articleId])
 }
 
 model Like {
-  id        String   @id @default(uuid())
-  userId    String
-  postId    String?
-  articleId String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        Int      @id @default(autoincrement())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
   post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    Int?
   article   Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  articleId Int?
+  createdAt DateTime @default(now())
 
-  @@unique([userId, postId])
-  @@unique([userId, articleId])
-}
-
-model Feedback {
-  id               String          @id @default(uuid())
-  title            String?
-  content          String
-  rating           Int
-  userId           String
-  servicePackageId String?
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  user             User            @relation(fields: [userId], references: [id])
-  servicePackage   ServicePackage? @relation(fields: [servicePackageId], references: [id])
+  @@unique([userId, postId, articleId])
 }
 
 model Tag {
-  id        String    @id @default(uuid())
-  name      String    @unique
+  id        Int       @id @default(autoincrement())
+  name      String    @unique @db.VarChar(100)
+  slug      String    @unique @db.VarChar(100)
+  posts     Post[]    @relation("PostTags")
+  articles  Article[] @relation("ArticleTags")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
-  postTags  PostTag[]
-}
-
-model PostTag {
-  id        String   @id @default(uuid())
-  postId    String
-  tagId     String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
-  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
-  @@unique([postId, tagId])
-}
-
-model Connection {
-  id          String   @id @default(uuid())
-  lostPostId  String
-  foundPostId String
-  statusId    String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  lostPost    Post     @relation("LostPost", fields: [lostPostId], references: [id])
-  foundPost   Post     @relation("FoundPost", fields: [foundPostId], references: [id])
-  status      Status   @relation(fields: [statusId], references: [id])
-}
-
-model Status {
-  id          String       @id @default(uuid())
-  name        String       @unique
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  posts       Post[]
-  connections Connection[]
-}
-
-model Admin {
-  id        String   @id @default(uuid())
-  userId    String   @unique
-  level     Int      @default(1)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Media {
-  id        String   @id @default(uuid())
-  url       String
-  type      String
-  itemId    String
+  id        Int      @id @default(autoincrement())
+  url       String   @db.VarChar(255)
+  type      String   @db.VarChar(50)
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    Int?
+  article   Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  articleId Int?
   createdAt DateTime @default(now())
-  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+}
+
+model ServicePackage {
+  id            Int            @id @default(autoincrement())
+  name          String         @unique @db.VarChar(100)
+  price         Float
+  duration      Int
+  subscriptions Subscription[]
+  payments      Payment[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Subscription {
+  id        Int                @id @default(autoincrement())
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  post      Post               @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    Int
+  package   ServicePackage     @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  packageId Int
+  startDate DateTime           @default(now())
+  endDate   DateTime
+  status    SubscriptionStatus @default(ACTIVE)
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+
+  @@index([postId])
+}
+
+model Payment {
+  id            Int            @id @default(autoincrement())
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        Int
+  package       ServicePackage @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  packageId     Int
+  amount        Float
+  transactionId String?        @unique @db.VarChar(255)
+  status        String         @default("PENDING")
+  paidAt        DateTime       @default(now())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
 }
 
 model Report {
-  id        String   @id @default(uuid())
-  userId    String
-  postId    String?
-  commentId String?
-  reason    String
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
-  post      Post?    @relation(fields: [postId], references: [id])
-  comment   Comment? @relation(fields: [commentId], references: [id])
+  id         Int          @id @default(autoincrement())
+  reporter   User         @relation("UserReports", fields: [reporterId], references: [id], onDelete: Cascade)
+  reporterId Int
+  reason     String       @db.Text
+  post       Post?        @relation("PostReports", fields: [postId], references: [id], onDelete: Cascade)
+  postId     Int?
+  article    Article?     @relation("ArticleReports", fields: [articleId], references: [id], onDelete: Cascade)
+  articleId  Int?
+  status     ReportStatus @default(PENDING)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  @@index([postId])
+  @@index([articleId])
 }
 
-model ActivityLog {
-  id        String   @id @default(uuid())
-  userId    String
-  action    String
-  metadata  Json?
-  createdAt DateTime @default(now())
+model Notification {
+  id        Int      @id @default(autoincrement())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  content   String   @db.Text
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
 }
