@@ -1,8 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { AllExceptionsFilter } from '~/common/filters/all-exceptions.filter';
+import { GlobalValidationPipe } from '~/common/pipes/global-validation.pipe';
 import { AppModule } from './app.module';
-import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
-import { GlobalValidationPipe } from './common/pipes/global-validation.pipe';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -25,4 +25,7 @@ async function bootstrap() {
 
   await app.listen(3000);
 }
-bootstrap();
+bootstrap().catch((error) => {
+  console.error('Application failed to start:', error);
+  process.exit(1);
+});
