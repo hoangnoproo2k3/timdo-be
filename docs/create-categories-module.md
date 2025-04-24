@@ -1,6 +1,7 @@
 # Task: Create a NestJS Categories Module with Prisma
 
 Create a new NestJS module for managing Categories with the following requirements:
+
 - Place the module in `src/modules/categories/` with the structure defined in `.cursor/rules/nestjs-best-practices.mdc`:
   - Include `categories.module.ts`, `categories.controller.ts`, `categories.service.ts`, and `categories.repository.ts`.
   - Place DTOs in `src/modules/categories/dto/` with files `create-category.dto.ts` and `category.dto.ts`.

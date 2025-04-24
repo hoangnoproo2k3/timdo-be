@@ -23,7 +23,12 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  await app.listen(3000);
+  // const apiPrefix = process.env.NODE_ENV === 'production' ? '' : 'api/v1';
+  // app.setGlobalPrefix(apiPrefix);
+
+  const port = process.env.PORT || 3001;
+  await app.listen(port);
+  console.log('http://localhost:' + port);
 }
 bootstrap().catch((error) => {
   console.error('Application failed to start:', error);

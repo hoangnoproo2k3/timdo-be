@@ -3,10 +3,12 @@
 The Categories module in `src/modules/categories/` has several issues that need to be fixed. Please address the following problems while adhering to the best practices defined in `.cursor/rules/nestjs-best-practices.mdc`:
 
 1. **Incorrect Import Paths for DTOs**:
+
    - In `categories.controller.ts`, the DTOs (`CreateCategoryDto`, `CategoryDto`) are imported from `./wrong-path`.
    - Fix the imports to use the correct path `./dto`, as the DTOs are located in `src/modules/categories/dto/`.
 
 2. **Missing Validation in CreateCategoryDto**:
+
    - In `dto/create-category.dto.ts`, the `name` field is missing validation.
    - Add validation using `class-validator` to ensure `name` is a string and has a minimum length of 3 (`@IsString()`, `@MinLength(3)`).
 
