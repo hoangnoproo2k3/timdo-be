@@ -1,0 +1,345 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+NestJS Cursor Rules for API Development with Prisma (Best Practices 2025)
+These rules ensure that Cursor AI generates NestJS code adhering to 2025 best practices for clean, maintainable, and scalable APIs using Prisma as the ORM.
+General Guidelines
+
+Always use TypeScript for type safety and better maintainability.
+Follow NestJS module-based architecture: organize code into modules, controllers, services, and DTOs.
+Use RESTful API conventions (e.g., /users for collections, /users/:id for specific resources).
+Apply API versioning using URI prefix (e.g., /v1/users) for scalability.
+Use PascalCase for class names, camelCase for variables and methods, and UPPER_SNAKE_CASE for constants.
+Generate Swagger documentation using @nestjs/swagger for all endpoints.
+
+File Structure
+
+Place all module-related files in a dedicated folder inside src/modules/ (e.g., src/modules/users/ for the Users module).
+Use the following structure for each module:src/
+└── modules/
+    └── users/
+        ├── dto/
+        │   ├── create-user.dto.ts
+        │   ├── update-user.dto.ts
+        │   └── user.dto.ts
+        ├── users.controller.ts
+        ├── users.service.ts
+        ├── users.repository.ts
+        └── users.module.ts
+
+
+Prisma schema is defined in prisma/schema.prisma and not duplicated in module folders.
+
+Controllers
+
+Use @Controller('v1/<resource>') to define versioned endpoints (e.g., @Controller('v1/users')).
+Use RESTful HTTP methods: @Get(), @Post(), @Patch(), @Delete().
+Always return DTOs to control response structure.
+Include Swagger decorators (e.g., @ApiOperation, @ApiResponse) for documentation.
+Example:import { Controller, Get, Post, Body, Param } from '@nestjs/common';
+import { UsersService } from './users.service';
+import { CreateUserDto, UserDto } from './dto';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+
+@ApiTags('Users')
+@Controller('v1/users')
+export class UsersController {
+  constructor(private readonly usersService: UsersService) {}
+
+  @Post()
+  @ApiOperation({ summary: 'Create a new user' })
+  @ApiResponse({ status: 201, description: 'User created', type: UserDto })
+  async create(@Body() createUserDto: CreateUserDto): Promise<UserDto> {
+    return this.usersService.create(createUserDto);
+  }
+
+  @Get(':id')
+  @ApiOperation({ summary: 'Get a user by ID' })
+  @ApiResponse({ status: 200, description: 'User found', type: UserDto })
+  async findOne(@Param('id') id: string): Promise<UserDto> {
+    return this.usersService.findOne(id);
+  }
+}
+
+
+
+Services
+
+Use @Injectable() for all services.
+Handle business logic and validation in services, not controllers.
+Inject repositories or other dependencies via constructor-based Dependency Injection.
+Use async/await for asynchronous operations.
+Example:import { Injectable, NotFoundException } from '@nestjs/common';
+import { UsersRepository } from './users.repository';
+import { CreateUserDto, UserDto } from './dto';
+
+@Injectable()
+export class UsersService {
+  constructor(private readonly usersRepository: UsersRepository) {}
+
+  async create(createUserDto: CreateUserDto): Promise<UserDto> {
+    const user = await this.usersRepository.create(createUserDto);
+    return this.toDto(user);
+  }
+
+  async findOne(id: string): Promise<UserDto> {
+    const user = await this.usersRepository.findOne(id);
+    if (!user) throw new NotFoundException(`User with ID ${id} not found`);
+    return this.toDto(user);
+  }
+
+  private toDto(user: any): UserDto {
+    const userDto = new UserDto();
+    userDto.id = user.id;
+    userDto.email = user.email;
+    return userDto;
+  }
+}
+
+
+
+DTOs (Data Transfer Objects)
+
+Always define DTOs for request and response payloads inside dto/.
+Use class-validator and class-transformer for validation and transformation.
+Example:import { IsString, IsEmail, MinLength } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class CreateUserDto {
+  @ApiProperty({ example: 'user@example.com', description: 'User email' })
+  @IsEmail()
+  email: string;
+
+  @ApiProperty({ example: 'password123', description: 'User password' })
+  @IsString()
+  @MinLength(6)
+  password: string;
+}
+
+export class UserDto {
+  @ApiProperty({ example: '123', description: 'User ID' })
+  id: string;
+
+  @ApiProperty({ example: 'user@example.com', description: 'User email' })
+  email: string;
+}
+
+
+
+Repositories
+
+Use Repository Pattern for database operations with Prisma.
+Inject the PrismaService into repositories using Dependency Injection.
+Example:import { Injectable } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service';
+import { CreateUserDto } from './dto';
+
+@Injectable()
+export class UsersRepository {
+  constructor(private readonly prisma: PrismaService) {}
+
+  async create(createUserDto: CreateUserDto) {
+    return this.prisma.user.create({
+      data: createUserDto,
+    });
+  }
+
+  async findOne(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+    });
+  }
+}
+
+
+
+Error Handling
+
+Use NestJS built-in exceptions (e.g., NotFoundException, BadRequestException) for standard HTTP errors.
+Only create custom exceptions for specific business logic cases (e.g., UserAlreadyExistsException).
+Implement a global exception filter to standardize error responses across the application.
+Error response structure must include:{
+  "statusCode": <HTTP_STATUS>,
+  "message": "<Error message>",
+  "errors": [{ "field": "<Field name>", "message": "<Field error>" }],
+  "timestamp": "<ISO timestamp>",
+  "path": "<Request path>"
+}
+
+
+Example global exception filter:import { ExceptionFilter, Catch, ArgumentsHost, HttpException } from '@nestjs/common';
+import { Request, Response } from 'express';
+
+@Catch()
+export class AllExceptionsFilter implements ExceptionFilter {
+  catch(exception: unknown, host: ArgumentsHost) {
+    const ctx = host.switchToHttp();
+    const response = ctx.getResponse<Response>();
+    const request = ctx.getRequest<Request>();
+    const status = exception instanceof HttpException ? exception.getStatus() : 500;
+    const message = exception instanceof HttpException ? exception.message : 'Internal server error';
+    const errors = exception instanceof HttpException ? exception.getResponse() : null;
+
+    response.status(status).json({
+      statusCode: status,
+      timestamp: new Date().toISOString(),
+      path: request.url,
+      message,
+      errors: typeof errors === 'object' ? errors : null,
+    });
+  }
+}
+
+
+Apply in main.ts:app.useGlobalFilters(new AllExceptionsFilter());
+
+
+
+Validation
+
+Use ValidationPipe globally with exceptionFactory to handle validation errors.
+Validation errors must return all errors, not just the first one.
+Use class-validator and class-transformer for DTO validation and transformation.
+Example GlobalValidationPipe:import { BadRequestException, ValidationPipe } from '@nestjs/common';
+import { ValidationError } from 'class-validator';
+
+export const GlobalValidationPipe = new ValidationPipe({
+  transform: true,
+  whitelist: true,
+  forbidNonWhitelisted: true,
+  validationError: { target: false },
+  exceptionFactory: (validationErrors: ValidationError[] = []) => {
+    const errors = validationErrors.map((error) => {
+      const constraints = error.constraints || {};
+      const message = Object.values(constraints)[0] || 'Validation failed';
+      return {
+        field: error.property,
+        message,
+      };
+    });
+
+    return new BadRequestException({
+      statusCode: 400,
+      message: 'Validation failed',
+      errors,
+    });
+  },
+});
+
+
+Apply in main.ts:app.useGlobalPipes(GlobalValidationPipe);
+
+
+Avoid using separate interceptors for validation; rely on ValidationPipe instead.
+
+API Versioning
+
+Use URI versioning (e.g., /v1/users).
+Configure versioning in main.ts:app.enableVersioning({
+  type: VersioningType.URI,
+  defaultVersion: '1',
+});
+
+
+
+Testing
+
+Generate unit tests for controllers and services using *.spec.ts files.
+Use @nestjs/testing for testing modules.
+Example:import { Test, TestingModule } from '@nestjs/testing';
+import { UsersService } from './users.service';
+import { UsersRepository } from './users.repository';
+import { PrismaService } from '../prisma/prisma.service';
+
+describe('UsersService', () => {
+  let service: UsersService;
+  let repository: UsersRepository;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        UsersService,
+        UsersRepository,
+        {
+          provide: PrismaService,
+          useValue: {
+            user: {
+              create: jest.fn(),
+              findUnique: jest.fn(),
+            },
+          },
+        },
+      ],
+    }).compile();
+
+    service = module.get<UsersService>(UsersService);
+    repository = module.get<UsersRepository>(UsersRepository);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+});
+
+
+
+Prisma Integration
+
+Use @nestjs/prisma for Prisma integration.
+Inject PrismaService into repositories for database operations.
+Example PrismaService setup:import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
+
+@Injectable()
+export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  async onModuleInit() {
+    await this.$connect();
+  }
+
+  async onModuleDestroy() {
+    await this.$disconnect();
+  }
+}
+
+
+Configure in module:import { Module } from '@nestjs/common';
+import { PrismaModule } from '../prisma/prisma.module';
+import { UsersController } from './users.controller';
+import { UsersService } from './users.service';
+import { UsersRepository } from './users.repository';
+
+@Module({
+  imports: [PrismaModule],
+  controllers: [UsersController],
+  providers: [UsersService, UsersRepository],
+})
+export class UsersModule {}
+
+
+
+Additional Rules
+
+Use ESLint and Prettier for code formatting and linting.
+Follow SOLID principles, especially Single Responsibility Principle (SRP).
+Avoid business logic in controllers; keep them thin.
+Use environment variables for configuration with @nestjs/config.
+Implement logging with @nestjs/common Logger for debugging.
+
+When to Apply These Rules
+
+Apply to all TypeScript files in src/ (glob: src/**/*.ts).
+Ignore test files (*.spec.ts) for code generation rules but include them for test generation.
+
+Example Prompt for Cursor
+When asked to generate a new NestJS API endpoint:
+
+Create a new module inside src/modules/ with the above structure.
+Generate controller, service, repository, and DTOs.
+Use Prisma for database operations, referencing the schema in prisma/schema.prisma.
+Place DTOs in dto/.
+Include Swagger documentation and validation.
+Add unit tests for the controller and service.
+Ensure versioned endpoints and proper error handling.
+

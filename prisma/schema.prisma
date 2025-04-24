@@ -1,0 +1,310 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum PostType {
+  LOST
+  FOUND
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  BANK_TRANSFER
+  MOMO
+  ZALOPAY
+  VNPAY
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model User {
+  id            String         @id @default(uuid())
+  email         String         @unique
+  password      String
+  isVerified    Boolean        @default(false)
+  role          Role           @default(USER)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  profile       Profile?
+  posts         Post[]
+  payments      Payment[]
+  notifications Notification[]
+  comments      Comment[]
+  likes         Like[]
+  admin         Admin?
+  feedbacks     Feedback[]
+  reports       Report[]
+  activityLogs  ActivityLog[]
+}
+
+model Profile {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  fullName  String
+  phone     String?
+  address   String?
+  avatar    String?
+  bio       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Post {
+  id               String          @id @default(uuid())
+  title            String
+  postType         PostType
+  isApproved       Boolean         @default(false)
+  viewCount        Int             @default(0)
+  userId           String
+  itemId           String          @unique
+  servicePackageId String?
+  statusId         String
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  user             User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item             Item            @relation(fields: [itemId], references: [id])
+  servicePackage   ServicePackage? @relation(fields: [servicePackageId], references: [id])
+  status           Status          @relation(fields: [statusId], references: [id])
+  comments         Comment[]
+  likes            Like[]
+  notifications    Notification[]
+  payments         Payment[]
+  postTags         PostTag[]
+  lostConnections  Connection[]    @relation("LostPost")
+  foundConnections Connection[]    @relation("FoundPost")
+  reports          Report[]
+
+  @@index([postType])
+  @@index([userId])
+  @@index([statusId])
+}
+
+model Item {
+  id          String   @id @default(uuid())
+  name        String
+  description String
+  images      Json
+  categoryId  String
+  locationId  String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  category    Category @relation(fields: [categoryId], references: [id])
+  location    Location @relation(fields: [locationId], references: [id])
+  post        Post?
+  media       Media[]
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  items     Item[]
+}
+
+model Location {
+  id          String   @id @default(uuid())
+  name        String
+  address     String
+  coordinates Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  items       Item[]
+}
+
+model ServicePackage {
+  id          String     @id @default(uuid())
+  name        String
+  description String
+  price       Float
+  duration    Int
+  priority    Int
+  features    Json
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  posts       Post[]
+  payments    Payment[]
+  feedbacks   Feedback[]
+}
+
+model Payment {
+  id               String         @id @default(uuid())
+  amount           Float
+  paymentMethod    PaymentMethod
+  status           PaymentStatus
+  transactionCode  String?
+  userId           String
+  servicePackageId String
+  postId           String         @unique
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  user             User           @relation(fields: [userId], references: [id])
+  servicePackage   ServicePackage @relation(fields: [servicePackageId], references: [id])
+  post             Post           @relation(fields: [postId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  content   String
+  isRead    Boolean  @default(false)
+  type      String
+  userId    String
+  postId    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post?    @relation(fields: [postId], references: [id])
+}
+
+model Article {
+  id        String    @id @default(uuid())
+  title     String
+  content   String
+  thumbnail String?
+  authorId  String
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  comments  Comment[]
+  likes     Like[]
+}
+
+model Comment {
+  id        String   @id @default(uuid())
+  content   String
+  userId    String
+  postId    String?
+  articleId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  article   Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  reports   Report[]
+}
+
+model Like {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String?
+  articleId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      Post?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  article   Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, postId])
+  @@unique([userId, articleId])
+}
+
+model Feedback {
+  id               String          @id @default(uuid())
+  title            String?
+  content          String
+  rating           Int
+  userId           String
+  servicePackageId String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  user             User            @relation(fields: [userId], references: [id])
+  servicePackage   ServicePackage? @relation(fields: [servicePackageId], references: [id])
+}
+
+model Tag {
+  id        String    @id @default(uuid())
+  name      String    @unique
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  postTags  PostTag[]
+}
+
+model PostTag {
+  id        String   @id @default(uuid())
+  postId    String
+  tagId     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, tagId])
+}
+
+model Connection {
+  id          String   @id @default(uuid())
+  lostPostId  String
+  foundPostId String
+  statusId    String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lostPost    Post     @relation("LostPost", fields: [lostPostId], references: [id])
+  foundPost   Post     @relation("FoundPost", fields: [foundPostId], references: [id])
+  status      Status   @relation(fields: [statusId], references: [id])
+}
+
+model Status {
+  id          String       @id @default(uuid())
+  name        String       @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  posts       Post[]
+  connections Connection[]
+}
+
+model Admin {
+  id        String   @id @default(uuid())
+  userId    String   @unique
+  level     Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Media {
+  id        String   @id @default(uuid())
+  url       String
+  type      String
+  itemId    String
+  createdAt DateTime @default(now())
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+}
+
+model Report {
+  id        String   @id @default(uuid())
+  userId    String
+  postId    String?
+  commentId String?
+  reason    String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+  post      Post?    @relation(fields: [postId], references: [id])
+  comment   Comment? @relation(fields: [commentId], references: [id])
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  metadata  Json?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
