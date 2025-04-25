@@ -2,10 +2,12 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PassportModule } from '@nestjs/passport';
+import { envConfig } from '~/common/config/env.config';
 import { PrismaService } from '~/prisma/prisma.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { GoogleStrategy } from './google.strategy';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 
 @Module({
   imports: [
@@ -13,15 +15,15 @@ import { GoogleStrategy } from './google.strategy';
     PassportModule.register({ defaultStrategy: 'google' }),
     JwtModule.registerAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => {
-        const jwtSecret = configService.get<string>('JWT_SECRET');
+      useFactory: () => {
+        const jwtSecret = envConfig.jwtSecret;
         if (!jwtSecret) {
           throw new Error('Missing JWT_SECRET environment variable');
         }
         return {
           secret: jwtSecret,
           signOptions: {
-            expiresIn: configService.get<string>('JWT_EXPIRES_IN'),
+            expiresIn: envConfig.jwtExpiresIn,
           },
         };
       },
@@ -29,6 +31,6 @@ import { GoogleStrategy } from './google.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PrismaService, GoogleStrategy],
+  providers: [AuthService, PrismaService, GoogleStrategy, GoogleAuthGuard],
 })
 export class AuthModule {}

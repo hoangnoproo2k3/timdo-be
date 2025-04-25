@@ -1,7 +1,7 @@
 import { Injectable, Logger, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PassportStrategy } from '@nestjs/passport';
 import { Strategy } from 'passport-google-oauth20';
+import { envConfig } from '~/common/config/env.config';
 
 interface GoogleProfile {
   id: string;
@@ -13,18 +13,18 @@ interface GoogleProfile {
 export class GoogleStrategy extends PassportStrategy(Strategy, 'google') {
   private readonly logger = new Logger(GoogleStrategy.name);
 
-  constructor(configService: ConfigService) {
+  constructor() {
     super({
-      clientID: configService.get<string>('GOOGLE_CLIENT_ID') || '',
-      clientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET') || '',
-      callbackURL: configService.get<string>('GOOGLE_CALLBACK_URL') || '',
+      clientID: envConfig.googleClientId,
+      clientSecret: envConfig.googleClientSecret,
+      callbackURL: envConfig.googleCallbackUrl,
       scope: ['email', 'profile'],
       passReqToCallback: false,
     });
 
-    const clientID = configService.get<string>('GOOGLE_CLIENT_ID');
-    const clientSecret = configService.get<string>('GOOGLE_CLIENT_SECRET');
-    const callbackURL = configService.get<string>('GOOGLE_CALLBACK_URL');
+    const clientID = envConfig.googleClientId;
+    const clientSecret = envConfig.googleClientSecret;
+    const callbackURL = envConfig.googleCallbackUrl;
 
     if (!clientID || !clientSecret || !callbackURL) {
       const missingVars = [

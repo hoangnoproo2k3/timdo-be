@@ -6,13 +6,10 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
+import { envConfig } from '~/common/config/env.config';
 import { comparePassword, hashPassword } from '~/common/utils/bcrypt.util';
 import { generateRefreshToken } from '~/common/utils/crypto.util';
-import {
-  generateAccessToken,
-  getMaxTokenPerUser,
-  getRefreshTokenMaxAge,
-} from '~/common/utils/jwt.util';
+import { generateAccessToken } from '~/common/utils/jwt.util';
 import { PrismaService } from '~/prisma/prisma.service';
 import { SignInDto } from './dto/signin.dto';
 import { SignUpDto } from './dto/signup.dto';
@@ -27,8 +24,8 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
   ) {
-    this.MAX_TOKENS_PER_USER = getMaxTokenPerUser(this.configService);
-    this.REFRESH_EXPIRES_IN_DAYS = getRefreshTokenMaxAge(this.configService);
+    this.MAX_TOKENS_PER_USER = envConfig.maxRefreshTokensPerUser;
+    this.REFRESH_EXPIRES_IN_DAYS = envConfig.refreshTokenExpiresInDays;
   }
 
   async signUp(signUpDto: SignUpDto) {
@@ -69,15 +66,11 @@ export class AuthService {
       },
     });
 
-    const accessToken = generateAccessToken(
-      this.jwtService,
-      this.configService,
-      {
-        sub: user.id,
-        email: user.email,
-        role: user.role,
-      },
-    );
+    const accessToken = generateAccessToken(this.jwtService, {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    });
 
     const refreshToken = generateRefreshToken();
     const expiresAt = new Date();
@@ -181,15 +174,11 @@ export class AuthService {
     role: string;
     createdAt: Date;
   }) {
-    const accessToken = generateAccessToken(
-      this.jwtService,
-      this.configService,
-      {
-        sub: user.id,
-        email: user.email,
-        role: user.role,
-      },
-    );
+    const accessToken = generateAccessToken(this.jwtService, {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    });
     const refreshToken = generateRefreshToken();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + this.REFRESH_EXPIRES_IN_DAYS);

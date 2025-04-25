@@ -7,16 +7,15 @@ import {
   Post,
   Req,
   Res,
-  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { AuthGuard } from '@nestjs/passport';
 import { Request, Response } from 'express';
-import { getRefreshTokenMaxAge } from '~/common/utils/jwt.util';
+import { envConfig } from '~/common/config/env.config';
 import { AuthService } from './auth.service';
 import { SignInDto } from './dto/signin.dto';
 import { SignUpDto } from './dto/signup.dto';
+import { GoogleAuthGuard } from './guards/google-auth.guard';
 
 interface GoogleUser {
   googleId: string;
@@ -41,7 +40,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: getRefreshTokenMaxAge(this.configService) * 24 * 60 * 60 * 1000,
+      maxAge: envConfig.refreshTokenExpiresInDays * 24 * 60 * 60 * 1000,
     });
 
     return res.json({
@@ -61,7 +60,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: getRefreshTokenMaxAge(this.configService) * 24 * 60 * 60 * 1000,
+      maxAge: envConfig.refreshTokenExpiresInDays * 24 * 60 * 60 * 1000,
     });
 
     return res.json({
@@ -72,16 +71,12 @@ export class AuthController {
   }
 
   @Get('google')
-  @UseGuards(AuthGuard('google'))
+  @UseGuards(GoogleAuthGuard)
   async googleAuth() {}
 
   @Get('google/callback')
-  @UseGuards(AuthGuard('google'))
+  @UseGuards(GoogleAuthGuard)
   async googleAuthRedirect(@Req() req: Request, @Res() res: Response) {
-    if (!req.user) {
-      throw new UnauthorizedException('Google authentication failed');
-    }
-
     const googleUser = req.user as GoogleUser;
     const { user, accessToken, refreshToken } =
       await this.authService.googleLogin(googleUser);
@@ -90,7 +85,7 @@ export class AuthController {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: getRefreshTokenMaxAge(this.configService) * 24 * 60 * 60 * 1000,
+      maxAge: envConfig.refreshTokenExpiresInDays * 24 * 60 * 60 * 1000,
     });
 
     return res.json({
