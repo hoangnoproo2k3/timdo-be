@@ -16,7 +16,7 @@ export const GlobalValidationPipe = new ValidationPipe({
       };
     });
 
-    return new BadRequestException({
+    throw new BadRequestException({
       statusCode: 400,
       message: 'Validation failed',
       errors,

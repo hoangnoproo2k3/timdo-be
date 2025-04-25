@@ -1,5 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import * as cookieParser from 'cookie-parser';
 import { AllExceptionsFilter } from '~/common/filters/all-exceptions.filter';
 import { GlobalValidationPipe } from '~/common/pipes/global-validation.pipe';
 import { AppModule } from './app.module';
@@ -12,6 +13,7 @@ async function bootstrap() {
   //   defaultVersion: '1',
   // });
 
+  app.use(cookieParser());
   app.useGlobalPipes(GlobalValidationPipe);
   app.useGlobalFilters(new AllExceptionsFilter());
 
@@ -23,8 +25,8 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  // const apiPrefix = process.env.NODE_ENV === 'production' ? '' : 'api/v1';
-  // app.setGlobalPrefix(apiPrefix);
+  const apiPrefix = process.env.NODE_ENV === 'production' ? '' : 'api';
+  app.setGlobalPrefix(apiPrefix);
 
   const port = process.env.PORT || 3001;
   await app.listen(port);
