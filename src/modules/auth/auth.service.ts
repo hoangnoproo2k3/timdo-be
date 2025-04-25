@@ -4,7 +4,6 @@ import {
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { envConfig } from '~/common/config/env.config';
 import { comparePassword, hashPassword } from '~/common/utils/bcrypt.util';
@@ -22,7 +21,6 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-    private configService: ConfigService,
   ) {
     this.MAX_TOKENS_PER_USER = envConfig.maxRefreshTokensPerUser;
     this.REFRESH_EXPIRES_IN_DAYS = envConfig.refreshTokenExpiresInDays;
@@ -34,18 +32,62 @@ export class AuthService {
     const existingUser = await this.prisma.user.findUnique({
       where: { email },
     });
+
+    const hashedPassword = await hashPassword(password);
+    const finalUsername =
+      username?.trim() ||
+      email.split('@')[0].split('.')[0] ||
+      email.split('@')[0];
+
     if (existingUser) {
+      // If user previously registered with Google but has no password,
+      // allow setting a password and reuse the account.
+      if (existingUser.googleId && !existingUser.password) {
+        const updatedUser = await this.prisma.user.update({
+          where: { email },
+          data: {
+            password: hashedPassword,
+            username: existingUser.username ?? finalUsername,
+          },
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            role: true,
+            createdAt: true,
+            password: true,
+            googleId: true,
+            avatarUrl: true,
+            updatedAt: true,
+          },
+        });
+
+        const accessToken = generateAccessToken(this.jwtService, {
+          sub: updatedUser.id,
+          email: updatedUser.email,
+          role: updatedUser.role,
+        });
+
+        const refreshToken = generateRefreshToken();
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + this.REFRESH_EXPIRES_IN_DAYS);
+
+        await this.prisma.refreshToken.create({
+          data: {
+            token: refreshToken,
+            userId: updatedUser.id,
+            expiresAt,
+          },
+        });
+
+        return { user: updatedUser, accessToken, refreshToken };
+      }
+
+      // User already exists with password → cannot register again
       throw new ConflictException('Email already exists');
     }
 
-    const hashedPassword = await hashPassword(password);
-
-    let finalUsername = username?.trim();
-    if (!finalUsername) {
-      const emailLocalPart = email.split('@')[0];
-      finalUsername = emailLocalPart.split('.')[0] || emailLocalPart;
-    }
-
+    // New user registration
     const user = await this.prisma.user.create({
       data: {
         email,
@@ -97,6 +139,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    // Google-only account cannot login with password
     if (!user.password) {
       throw new UnauthorizedException(
         'This account is linked to Google. Please use Google login.',
@@ -122,6 +165,7 @@ export class AuthService {
       });
 
       if (!user) {
+        // First time login with Google
         user = await this.prisma.user.create({
           data: {
             email: googleUser.email,
@@ -142,7 +186,7 @@ export class AuthService {
           },
         });
       } else if (!user.googleId) {
-        // Cập nhật googleId nếu người dùng đã tồn tại
+        // Link Google account to an existing user
         user = await this.prisma.user.update({
           where: { email: googleUser.email },
           data: { googleId: googleUser.googleId },
@@ -179,6 +223,7 @@ export class AuthService {
       email: user.email,
       role: user.role,
     });
+
     const refreshToken = generateRefreshToken();
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + this.REFRESH_EXPIRES_IN_DAYS);
@@ -189,6 +234,7 @@ export class AuthService {
           where: { userId: user.id },
         });
 
+        // Enforce maximum number of refresh tokens per user
         if (tokenCount >= this.MAX_TOKENS_PER_USER) {
           const tokensToDelete = await tx.refreshToken.findMany({
             where: { userId: user.id },

@@ -30,18 +30,27 @@ export class AuthController {
     private configService: ConfigService,
   ) {}
 
+  private getCookieOptions(): {
+    httpOnly: boolean;
+    secure: boolean;
+    sameSite: 'lax';
+    maxAge: number;
+  } {
+    return {
+      httpOnly: true,
+      secure: envConfig.nodeEnv === 'production',
+      sameSite: 'lax',
+      maxAge: envConfig.refreshTokenExpiresInDays * 24 * 60 * 60 * 1000, // days to ms
+    };
+  }
+
   @Post('signup')
   @HttpCode(HttpStatus.CREATED)
   async signUp(@Body() signUpDto: SignUpDto, @Res() res: Response) {
     const { user, accessToken, refreshToken } =
       await this.authService.signUp(signUpDto);
 
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: envConfig.refreshTokenExpiresInDays * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refresh_token', refreshToken, this.getCookieOptions());
 
     return res.json({
       message: 'User registered successfully',
@@ -56,12 +65,7 @@ export class AuthController {
     const { user, accessToken, refreshToken } =
       await this.authService.signIn(signInDto);
 
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: envConfig.refreshTokenExpiresInDays * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refresh_token', refreshToken, this.getCookieOptions());
 
     return res.json({
       message: 'User signed in successfully',
@@ -81,12 +85,7 @@ export class AuthController {
     const { user, accessToken, refreshToken } =
       await this.authService.googleLogin(googleUser);
 
-    res.cookie('refresh_token', refreshToken, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: envConfig.refreshTokenExpiresInDays * 24 * 60 * 60 * 1000,
-    });
+    res.cookie('refresh_token', refreshToken, this.getCookieOptions());
 
     return res.json({
       message: 'Google login successful',
