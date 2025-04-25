@@ -1,6 +1,7 @@
 import {
   ConflictException,
   Injectable,
+  InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -61,6 +62,10 @@ export class AuthService {
         username: true,
         role: true,
         createdAt: true,
+        password: true,
+        googleId: true,
+        avatarUrl: true,
+        updatedAt: true,
       },
     });
 
@@ -99,11 +104,83 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    if (!user.password) {
+      throw new UnauthorizedException(
+        'This account is linked to Google. Please use Google login.',
+      );
+    }
+
     const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
+    return this.createSession(user);
+  }
+
+  async googleLogin(googleUser: {
+    googleId: string;
+    email: string;
+    username: string;
+  }) {
+    try {
+      let user = await this.prisma.user.findUnique({
+        where: { email: googleUser.email },
+      });
+
+      if (!user) {
+        user = await this.prisma.user.create({
+          data: {
+            email: googleUser.email,
+            googleId: googleUser.googleId,
+            username: googleUser.username,
+            role: 'USER',
+          },
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            role: true,
+            createdAt: true,
+            password: true,
+            googleId: true,
+            avatarUrl: true,
+            updatedAt: true,
+          },
+        });
+      } else if (!user.googleId) {
+        // Cập nhật googleId nếu người dùng đã tồn tại
+        user = await this.prisma.user.update({
+          where: { email: googleUser.email },
+          data: { googleId: googleUser.googleId },
+          select: {
+            id: true,
+            email: true,
+            username: true,
+            role: true,
+            createdAt: true,
+            password: true,
+            googleId: true,
+            avatarUrl: true,
+            updatedAt: true,
+          },
+        });
+      }
+
+      return this.createSession(user);
+    } catch (error) {
+      console.error('Google login error:', error);
+      throw new InternalServerErrorException('Google login failed');
+    }
+  }
+
+  private async createSession(user: {
+    id: number;
+    email: string;
+    username: string | null;
+    role: string;
+    createdAt: Date;
+  }) {
     const accessToken = generateAccessToken(
       this.jwtService,
       this.configService,
@@ -143,18 +220,10 @@ export class AuthService {
         });
       });
     } catch (error) {
-      console.log(error);
-      throw new Error('Failed to process login');
+      console.error('Session creation error:', error);
+      throw new InternalServerErrorException('Failed to create session');
     }
 
-    const userResponse = {
-      id: user.id,
-      email: user.email,
-      username: user.username,
-      role: user.role,
-      createdAt: user.createdAt,
-    };
-
-    return { user: userResponse, accessToken, refreshToken };
+    return { user, accessToken, refreshToken };
   }
 }

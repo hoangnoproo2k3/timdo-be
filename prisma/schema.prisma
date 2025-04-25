@@ -41,7 +41,8 @@ enum SubscriptionStatus {
 model User {
   id            Int            @id @default(autoincrement())
   email         String         @unique @db.VarChar(255)
-  password      String         @db.VarChar(255)
+  password      String?        @db.VarChar(255)
+  googleId      String?        @unique
   username      String         @db.VarChar(100)
   role          Role           @default(USER)
   avatarUrl     String?        @db.VarChar(255)

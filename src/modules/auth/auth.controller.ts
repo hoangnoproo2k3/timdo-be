@@ -1,17 +1,28 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
   Post,
+  Req,
   Res,
+  UnauthorizedException,
+  UseGuards,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Response } from 'express';
+import { AuthGuard } from '@nestjs/passport';
+import { Request, Response } from 'express';
 import { getRefreshTokenMaxAge } from '~/common/utils/jwt.util';
 import { AuthService } from './auth.service';
 import { SignInDto } from './dto/signin.dto';
 import { SignUpDto } from './dto/signup.dto';
+
+interface GoogleUser {
+  googleId: string;
+  email: string;
+  username: string;
+}
 
 @Controller('/v1/auth')
 export class AuthController {
@@ -28,7 +39,7 @@ export class AuthController {
 
     res.cookie('refresh_token', refreshToken, {
       httpOnly: true,
-      secure: false,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       maxAge: getRefreshTokenMaxAge(this.configService) * 24 * 60 * 60 * 1000,
     });
@@ -55,6 +66,35 @@ export class AuthController {
 
     return res.json({
       message: 'User signed in successfully',
+      user,
+      accessToken,
+    });
+  }
+
+  @Get('google')
+  @UseGuards(AuthGuard('google'))
+  async googleAuth() {}
+
+  @Get('google/callback')
+  @UseGuards(AuthGuard('google'))
+  async googleAuthRedirect(@Req() req: Request, @Res() res: Response) {
+    if (!req.user) {
+      throw new UnauthorizedException('Google authentication failed');
+    }
+
+    const googleUser = req.user as GoogleUser;
+    const { user, accessToken, refreshToken } =
+      await this.authService.googleLogin(googleUser);
+
+    res.cookie('refresh_token', refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: getRefreshTokenMaxAge(this.configService) * 24 * 60 * 60 * 1000,
+    });
+
+    return res.json({
+      message: 'Google login successful',
       user,
       accessToken,
     });
