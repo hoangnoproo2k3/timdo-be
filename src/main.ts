@@ -1,4 +1,5 @@
 import { NestFactory } from '@nestjs/core';
+import { ScheduleModule } from '@nestjs/schedule';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as cookieParser from 'cookie-parser';
 import { AllExceptionsFilter } from '~/common/filters/all-exceptions.filter';
@@ -7,7 +8,7 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
+  ScheduleModule.forRoot();
   // app.enableVersioning({
   //   type: VersioningType.URI,
   //   defaultVersion: '1',

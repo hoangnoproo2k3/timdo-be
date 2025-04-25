@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaService } from '~/prisma/prisma.service';
+import { TokenCleanupService } from '../cleanup/token-cleanup.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 
@@ -16,6 +17,6 @@ import { AuthService } from './auth.service';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PrismaService],
+  providers: [AuthService, PrismaService, TokenCleanupService],
 })
 export class AuthModule {}

@@ -1,19 +1,34 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
-import { hashPassword } from '~/common/utils/bcrypt.util';
+import { comparePassword, hashPassword } from '~/common/utils/bcrypt.util';
 import { generateRefreshToken } from '~/common/utils/crypto.util';
-import { generateAccessToken } from '~/common/utils/jwt.util';
+import {
+  generateAccessToken,
+  getMaxTokenPerUser,
+  getRefreshTokenMaxAge,
+} from '~/common/utils/jwt.util';
 import { PrismaService } from '~/prisma/prisma.service';
+import { SignInDto } from './dto/signin.dto';
 import { SignUpDto } from './dto/signup.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly MAX_TOKENS_PER_USER: number;
+  private readonly REFRESH_EXPIRES_IN_DAYS: number;
+
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {}
+  ) {
+    this.MAX_TOKENS_PER_USER = getMaxTokenPerUser(this.configService);
+    this.REFRESH_EXPIRES_IN_DAYS = getRefreshTokenMaxAge(this.configService);
+  }
 
   async signUp(signUpDto: SignUpDto) {
     const { email, password, username } = signUpDto;
@@ -61,10 +76,7 @@ export class AuthService {
 
     const refreshToken = generateRefreshToken();
     const expiresAt = new Date();
-    expiresAt.setDate(
-      expiresAt.getDate() +
-        this.configService.get<number>('REFRESH_TOKEN_EXPIRES_IN_DAYS', 7),
-    );
+    expiresAt.setDate(expiresAt.getDate() + this.REFRESH_EXPIRES_IN_DAYS);
 
     await this.prisma.refreshToken.create({
       data: {
@@ -75,5 +87,74 @@ export class AuthService {
     });
 
     return { user, accessToken, refreshToken };
+  }
+
+  async signIn(signInDto: SignInDto) {
+    const { email, password } = signInDto;
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+    });
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const isPasswordValid = await comparePassword(password, user.password);
+    if (!isPasswordValid) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const accessToken = generateAccessToken(
+      this.jwtService,
+      this.configService,
+      {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+      },
+    );
+    const refreshToken = generateRefreshToken();
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + this.REFRESH_EXPIRES_IN_DAYS);
+
+    try {
+      await this.prisma.$transaction(async (tx) => {
+        const tokenCount = await tx.refreshToken.count({
+          where: { userId: user.id },
+        });
+
+        if (tokenCount >= this.MAX_TOKENS_PER_USER) {
+          const tokensToDelete = await tx.refreshToken.findMany({
+            where: { userId: user.id },
+            orderBy: { createdAt: 'asc' },
+            take: tokenCount - this.MAX_TOKENS_PER_USER + 1,
+          });
+          await tx.refreshToken.deleteMany({
+            where: { id: { in: tokensToDelete.map((t) => t.id) } },
+          });
+        }
+
+        await tx.refreshToken.create({
+          data: {
+            token: refreshToken,
+            userId: user.id,
+            expiresAt,
+          },
+        });
+      });
+    } catch (error) {
+      console.log(error);
+      throw new Error('Failed to process login');
+    }
+
+    const userResponse = {
+      id: user.id,
+      email: user.email,
+      username: user.username,
+      role: user.role,
+      createdAt: user.createdAt,
+    };
+
+    return { user: userResponse, accessToken, refreshToken };
   }
 }
