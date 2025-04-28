@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -9,7 +10,6 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { Request, Response } from 'express';
 import { envConfig } from '~/common/config/env.config';
 import { AuthService } from './auth.service';
@@ -25,10 +25,7 @@ interface GoogleUser {
 
 @Controller('/v1/auth')
 export class AuthController {
-  constructor(
-    private authService: AuthService,
-    private configService: ConfigService,
-  ) {}
+  constructor(private authService: AuthService) {}
 
   private getCookieOptions(): {
     httpOnly: boolean;
@@ -74,6 +71,30 @@ export class AuthController {
     });
   }
 
+  @Post('refresh')
+  @HttpCode(HttpStatus.OK)
+  async refreshToken(@Req() req: Request, @Res() res: Response) {
+    const refreshToken = req?.cookies['refresh_token'] as string | undefined;
+    if (!refreshToken) {
+      throw new BadRequestException('Refresh token not found');
+    }
+
+    const {
+      user,
+      accessToken,
+      refreshToken: newRefreshToken,
+    } = await this.authService.refreshToken(refreshToken);
+
+    // Set new refresh token in cookie
+    res.cookie('refresh_token', newRefreshToken, this.getCookieOptions());
+
+    return res.json({
+      message: 'Token refreshed successfully',
+      user,
+      accessToken,
+    });
+  }
+
   @Get('google')
   @UseGuards(GoogleAuthGuard)
   async googleAuth() {}
@@ -87,10 +108,11 @@ export class AuthController {
 
     res.cookie('refresh_token', refreshToken, this.getCookieOptions());
 
-    return res.json({
-      message: 'Google login successful',
-      user,
-      accessToken,
-    });
+    // Encode user data
+    const encodedUser = encodeURIComponent(JSON.stringify(user));
+
+    return res.redirect(
+      `${envConfig.loginRedirectUrl}/auth/callback?accessToken=${accessToken}&userData=${encodedUser}`,
+    );
   }
 }

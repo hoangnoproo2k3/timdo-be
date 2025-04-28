@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Injectable,
   InternalServerErrorException,
@@ -136,19 +137,19 @@ export class AuthService {
       where: { email },
     });
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new BadRequestException('Invalid email or password');
     }
 
     // Google-only account cannot login with password
     if (!user.password) {
-      throw new UnauthorizedException(
+      throw new BadRequestException(
         'This account is linked to Google. Please use Google login.',
       );
     }
 
     const isPasswordValid = await comparePassword(password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new BadRequestException('Invalid email or password');
     }
 
     return this.createSession(user);
@@ -260,5 +261,29 @@ export class AuthService {
     }
 
     return { user, accessToken, refreshToken };
+  }
+
+  async refreshToken(oldRefreshToken: string) {
+    const existingToken = await this.prisma.refreshToken.findUnique({
+      where: { token: oldRefreshToken },
+      include: { user: true },
+    });
+
+    if (!existingToken) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    if (existingToken.expiresAt < new Date()) {
+      await this.prisma.refreshToken.delete({
+        where: { id: existingToken.id },
+      });
+      throw new UnauthorizedException('Refresh token has expired');
+    }
+
+    await this.prisma.refreshToken.delete({
+      where: { id: existingToken.id },
+    });
+
+    return this.createSession(existingToken.user);
   }
 }
