@@ -95,6 +95,32 @@ export class AuthController {
     });
   }
 
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  async logout(
+    @Req() req: Request,
+    @Res() res: Response,
+    @Body() body: { logoutFromAllDevices?: boolean },
+  ) {
+    const refreshToken = req?.cookies['refresh_token'] as string | undefined;
+
+    if (refreshToken) {
+      await this.authService.logout(refreshToken, body.logoutFromAllDevices);
+    }
+
+    // Clear the refresh token cookie
+    res.cookie('refresh_token', '', {
+      ...this.getCookieOptions(),
+      maxAge: 0,
+    });
+
+    return res.json({
+      message: body.logoutFromAllDevices
+        ? 'Logged out from all devices successfully'
+        : 'Logged out successfully',
+    });
+  }
+
   @Get('google')
   @UseGuards(GoogleAuthGuard)
   async googleAuth() {}
@@ -112,7 +138,7 @@ export class AuthController {
     const encodedUser = encodeURIComponent(JSON.stringify(user));
 
     return res.redirect(
-      `${envConfig.loginRedirectUrl}/auth/callback?accessToken=${accessToken}&userData=${encodedUser}`,
+      `${envConfig.loginRedirectUrl}?accessToken=${accessToken}&userData=${encodedUser}`,
     );
   }
 }

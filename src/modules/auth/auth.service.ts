@@ -286,4 +286,30 @@ export class AuthService {
 
     return this.createSession(existingToken.user);
   }
+
+  async logout(refreshToken: string, logoutFromAllDevices = false) {
+    try {
+      if (logoutFromAllDevices) {
+        const currentToken = await this.prisma.refreshToken.findUnique({
+          where: { token: refreshToken },
+          select: { userId: true },
+        });
+
+        if (currentToken) {
+          // Delete all refresh tokens for this user
+          await this.prisma.refreshToken.deleteMany({
+            where: { userId: currentToken.userId },
+          });
+        }
+      } else {
+        // Logout from current device only
+        await this.prisma.refreshToken.delete({
+          where: { token: refreshToken },
+        });
+      }
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Don't throw error if token doesn't exist
+    }
+  }
 }
