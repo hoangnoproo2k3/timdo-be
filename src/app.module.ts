@@ -5,6 +5,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { TokenCleanupModule } from './modules/cleanup/token-cleanup.module';
+import { PostsModule } from './modules/posts/posts.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { TokenCleanupModule } from './modules/cleanup/token-cleanup.module';
     PrismaModule,
     AuthModule,
     TokenCleanupModule,
+    PostsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

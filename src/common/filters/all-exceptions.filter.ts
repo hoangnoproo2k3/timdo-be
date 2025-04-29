@@ -30,46 +30,72 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     let status = 500;
     let message = 'Internal server error';
-    let errors: ErrorResponse[] = [{ message: 'Internal server error' }];
+    let errors: ErrorResponse[] = [{ message }];
 
+    // Case 1: NestJS HttpException
     if (exception instanceof HttpException) {
       status = exception.getStatus();
+      const exceptionResponse = exception.getResponse();
       message = exception.message;
 
-      const exceptionResponse = exception.getResponse();
       if (typeof exceptionResponse === 'string') {
         errors = [{ message: exceptionResponse }];
-      } else {
-        if ('message' in exceptionResponse) {
-          if (
-            'errors' in exceptionResponse &&
-            Array.isArray((exceptionResponse as ValidationErrorResponse).errors)
-          ) {
-            errors = (exceptionResponse as ValidationErrorResponse).errors.map(
-              (err) => ({
-                field:
-                  'property' in err
-                    ? err.property
-                    : 'field' in err
-                      ? err.field
-                      : undefined,
-                message:
-                  'message' in err
-                    ? err.message || 'Validation failed'
-                    : Object.values(err.constraints || {})[0] ||
-                      'Validation failed',
-              }),
-            );
-          } else {
-            errors = [
-              {
-                message:
-                  (exceptionResponse as SingleErrorResponse).message || message,
-              },
-            ];
-          }
+      } else if (typeof exceptionResponse === 'object') {
+        if (
+          'message' in exceptionResponse &&
+          'errors' in exceptionResponse &&
+          Array.isArray((exceptionResponse as Record<string, unknown>).errors)
+        ) {
+          // Validation error with errors array
+          errors = (exceptionResponse as ValidationErrorResponse).errors.map(
+            (err) => ({
+              field:
+                'property' in err
+                  ? err.property
+                  : 'field' in err
+                    ? err.field
+                    : undefined,
+              message:
+                'message' in err
+                  ? err.message || 'Validation failed'
+                  : Object.values(err.constraints || {})[0] ||
+                    'Validation failed',
+            }),
+          );
+        } else if ('message' in exceptionResponse) {
+          errors = [
+            {
+              message:
+                (exceptionResponse as SingleErrorResponse).message || message,
+            },
+          ];
         }
       }
+    }
+
+    // Case 2: JWT hoặc Passport lỗi xác thực
+    else if (
+      typeof exception === 'object' &&
+      exception &&
+      'name' in exception &&
+      'message' in exception &&
+      exception.name === 'UnauthorizedError'
+    ) {
+      status = 401;
+      message = 'Unauthorized';
+      errors = [
+        {
+          message:
+            (exception as { message: string }).message ||
+            'Invalid or missing authentication token',
+        },
+      ];
+    }
+
+    // Case 3: Lỗi thường khác
+    else if (exception instanceof Error) {
+      message = exception.message;
+      errors = [{ message }];
     }
 
     response.status(status).json({
