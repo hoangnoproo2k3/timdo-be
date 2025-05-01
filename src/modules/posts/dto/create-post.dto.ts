@@ -1,5 +1,13 @@
 import { PostType } from '@prisma/client';
-import { IsEnum, IsNotEmpty, IsString, MinLength } from 'class-validator';
+import {
+  IsBoolean,
+  IsDateString,
+  IsEnum,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MinLength,
+} from 'class-validator';
 
 export class CreatePostDto {
   @IsString()
@@ -9,10 +17,26 @@ export class CreatePostDto {
 
   @IsString()
   @IsNotEmpty()
-  @MinLength(10, { message: 'Content must be at least 10 characters long' })
-  content: string;
+  @MinLength(10, { message: 'Description must be at least 10 characters long' })
+  description: string;
 
   @IsEnum(PostType, { message: 'Invalid post type' })
   @IsNotEmpty()
   postType: PostType;
+
+  @IsString()
+  @IsOptional()
+  location?: string;
+
+  @IsString()
+  @IsOptional()
+  slug?: string;
+
+  @IsBoolean()
+  @IsOptional()
+  isPromoted?: boolean;
+
+  @IsDateString()
+  @IsOptional()
+  promoteUntil?: string;
 }

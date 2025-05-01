@@ -75,7 +75,7 @@ model Post {
   id            Int            @id @default(autoincrement())
   title         String         @db.VarChar(255)
   slug          String         @unique @db.VarChar(255)
-  content       String         @db.Text
+  description   String         @db.Text
   postType      PostType
   status        PostStatus     @default(PENDING)
   location      String?        @db.VarChar(255)
@@ -91,6 +91,7 @@ model Post {
   promoteUntil  DateTime?
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  deletedAt     DateTime?
 
   @@index([userId])
   @@index([postType, location])
