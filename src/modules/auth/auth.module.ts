@@ -6,8 +6,9 @@ import { envConfig } from '~/common/config/env.config';
 import { PrismaService } from '~/prisma/prisma.service';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
-import { GoogleStrategy } from './google.strategy';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { GoogleStrategy } from './strategy/google.strategy';
+import { JwtStrategy } from './strategy/jwt.strategy';
 
 @Module({
   imports: [
@@ -31,6 +32,12 @@ import { GoogleAuthGuard } from './guards/google-auth.guard';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PrismaService, GoogleStrategy, GoogleAuthGuard],
+  providers: [
+    AuthService,
+    PrismaService,
+    GoogleStrategy,
+    GoogleAuthGuard,
+    JwtStrategy,
+  ],
 })
 export class AuthModule {}
