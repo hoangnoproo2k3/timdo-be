@@ -312,4 +312,26 @@ export class AuthService {
       // Don't throw error if token doesn't exist
     }
   }
+
+  async getMe(userId: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        role: true,
+        createdAt: true,
+        googleId: true,
+        avatarUrl: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new BadRequestException('User not found');
+    }
+
+    return user;
+  }
 }

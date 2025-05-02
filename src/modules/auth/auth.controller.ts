@@ -12,10 +12,12 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { envConfig } from '~/common/config/env.config';
+import { JwtRequest } from '~/common/interfaces/request.interface';
 import { AuthService } from './auth.service';
 import { SignInDto } from './dto/signin.dto';
 import { SignUpDto } from './dto/signup.dto';
 import { GoogleAuthGuard } from './guards/google-auth.guard';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 interface GoogleUser {
   googleId: string;
@@ -140,5 +142,16 @@ export class AuthController {
     return res.redirect(
       `${envConfig.loginRedirectUrl}?accessToken=${accessToken}&userData=${encodedUser}`,
     );
+  }
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async getMe(@Req() req: JwtRequest) {
+    const user = await this.authService.getMe(req.user.userId);
+    return {
+      message: 'User retrieved successfully',
+      user,
+    };
   }
 }
