@@ -1,5 +1,7 @@
 import { PostType } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsDateString,
   IsEnum,
@@ -7,7 +9,18 @@ import {
   IsOptional,
   IsString,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+
+export class MediaItemDto {
+  @IsString()
+  @IsNotEmpty()
+  url: string;
+
+  @IsString()
+  @IsNotEmpty()
+  type: string;
+}
 
 export class CreatePostDto {
   @IsString()
@@ -30,6 +43,22 @@ export class CreatePostDto {
 
   @IsString()
   @IsOptional()
+  address?: string;
+
+  @IsString()
+  @IsOptional()
+  phoneNumber?: string;
+
+  @IsString()
+  @IsOptional()
+  category?: string;
+
+  @IsDateString()
+  @IsOptional()
+  date?: string;
+
+  @IsString()
+  @IsOptional()
   slug?: string;
 
   @IsBoolean()
@@ -39,4 +68,10 @@ export class CreatePostDto {
   @IsDateString()
   @IsOptional()
   promoteUntil?: string;
+
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => MediaItemDto)
+  mediaItems?: MediaItemDto[];
 }

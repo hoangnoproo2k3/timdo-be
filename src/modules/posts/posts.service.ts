@@ -31,12 +31,28 @@ export class PostsService {
         throw new InternalServerErrorException('Generated slug is invalid');
       }
 
+      const { mediaItems, ...postData } = createPostDto;
+
       const post = await tx.post.create({
         data: {
-          ...createPostDto,
+          ...postData,
           slug,
           userId,
         },
+      });
+
+      if (mediaItems && mediaItems.length > 0) {
+        await tx.media.createMany({
+          data: mediaItems.map((item) => ({
+            url: item.url,
+            type: item.type,
+            postId: post.id,
+          })),
+        });
+      }
+
+      const postWithMedia = await tx.post.findUnique({
+        where: { id: post.id },
         include: {
           user: {
             select: {
@@ -46,12 +62,13 @@ export class PostsService {
               avatarUrl: true,
             },
           },
+          media: true,
         },
       });
 
       return {
         message: 'Post created successfully',
-        post,
+        post: postWithMedia,
       };
     });
   }
@@ -129,6 +146,7 @@ export class PostsService {
               avatarUrl: true,
             },
           },
+          media: true,
         },
       }),
       this.prisma.post.count({ where }),
