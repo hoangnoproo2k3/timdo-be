@@ -78,7 +78,11 @@ model Post {
   description   String         @db.Text
   postType      PostType
   status        PostStatus     @default(PENDING)
-  location      String?        @db.VarChar(255)
+  location      String?
+  address       String?        @db.VarChar(255)
+  phoneNumber   String?        @db.VarChar(20)
+  category      String?        @db.VarChar(100)
+  date          DateTime?
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId        Int
   comments      Comment[]
