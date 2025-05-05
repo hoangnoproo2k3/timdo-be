@@ -23,6 +23,12 @@ enum PostStatus {
   REJECTED
 }
 
+enum PaymentStatus {
+  UNPAID
+  PAID
+  PENDING
+}
+
 enum ArticleStatus {
   DRAFT
   PUBLISHED
@@ -72,32 +78,35 @@ model RefreshToken {
 }
 
 model Post {
-  id            Int            @id @default(autoincrement())
-  title         String         @db.VarChar(255)
-  slug          String         @unique @db.VarChar(255)
-  description   String         @db.Text
-  postType      PostType
-  status        PostStatus     @default(PENDING)
-  rejectionReason String?      @db.Text
-  isPaid        Boolean        @default(false)
-  location      String?
-  address       String?        @db.VarChar(255)
-  phoneNumber   String?        @db.VarChar(20)
-  category      String?        @db.VarChar(100)
-  date          DateTime?
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId        Int
-  comments      Comment[]
-  likes         Like[]
-  tags          Tag[]          @relation("PostTags")
-  media         Media[]
-  reports       Report[]       @relation("PostReports")
-  subscriptions Subscription[]
-  isPromoted    Boolean        @default(false)
-  promoteUntil  DateTime?
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  deletedAt     DateTime?
+  id              Int             @id @default(autoincrement())
+  title           String          @db.VarChar(255)
+  slug            String          @unique @db.VarChar(255)
+  description     String          @db.Text
+  postType        PostType
+  status          PostStatus      @default(PENDING)
+  rejectionReason String?         @db.Text
+  isPaid          Boolean         @default(false)
+  paymentStatus   PaymentStatus?  @default(UNPAID)
+  packageId       Int?
+  package         ServicePackage? @relation(fields: [packageId], references: [id])
+  location        String?
+  address         String?         @db.VarChar(255)
+  phoneNumber     String?         @db.VarChar(20)
+  category        String?         @db.VarChar(100)
+  date            DateTime?
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          Int
+  comments        Comment[]
+  likes           Like[]
+  tags            Tag[]           @relation("PostTags")
+  media           Media[]
+  reports         Report[]        @relation("PostReports")
+  subscriptions   Subscription[]
+  isPromoted      Boolean         @default(false)
+  promoteUntil    DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  deletedAt       DateTime?
 
   @@index([userId])
   @@index([postType, location])
@@ -183,6 +192,7 @@ model ServicePackage {
   payments      Payment[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
+  Post          Post[]
 }
 
 model Subscription {

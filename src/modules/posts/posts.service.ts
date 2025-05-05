@@ -31,7 +31,12 @@ export class PostsService {
     return await this.prisma.$transaction(async (tx) => {
       const user = await tx.user.findUnique({
         where: { id: userId },
+        select: {
+          id: true,
+          role: true,
+        },
       });
+
       if (!user) {
         throw new NotFoundException('User not found');
       }
@@ -43,11 +48,27 @@ export class PostsService {
 
       const { mediaItems, ...postData } = createPostDto;
 
+      let initialStatus: PostStatus = 'PENDING';
+
+      // Nếu là bài nhặt được -> always auto-approve
+      if (postData.postType === 'FOUND') {
+        initialStatus = 'APPROVED';
+      }
+      // Nếu là admin -> always auto-approve
+      else if (user.role === 'ADMIN') {
+        initialStatus = 'APPROVED';
+      }
+      // Nếu là bài trả phí của user thường -> APPROVED nhưng paymentStatus = 'unpaid'
+      else if ('isPaid' in createPostDto && createPostDto.isPaid) {
+        initialStatus = 'APPROVED';
+      }
+
       const post = await tx.post.create({
         data: {
           ...postData,
           slug,
           userId,
+          status: initialStatus,
         },
       });
 
@@ -78,6 +99,7 @@ export class PostsService {
               username: true,
               email: true,
               avatarUrl: true,
+              role: true,
             },
           },
           media: true,
@@ -317,15 +339,32 @@ export class PostsService {
       throw new NotFoundException(`Không tìm thấy bài đăng với ID ${postId}`);
     }
 
-    const updateData: Prisma.PostUpdateInput = {
-      status:
-        dto.action === ModerateAction.APPROVE
-          ? PostStatus.APPROVED
-          : PostStatus.REJECTED,
-    };
+    const updateData: Prisma.PostUpdateInput = {};
 
-    if (dto.action === ModerateAction.REJECT && dto.reason) {
-      updateData.rejectionReason = dto.reason;
+    switch (dto.action) {
+      case ModerateAction.APPROVE:
+        updateData.status = 'APPROVED';
+        break;
+
+      case ModerateAction.REJECT:
+        updateData.status = 'REJECTED';
+        if (dto.reason) {
+          updateData.rejectionReason = dto.reason;
+        }
+        break;
+
+      case ModerateAction.CONFIRM_PAYMENT:
+        if (!post.isPaid) {
+          throw new BadRequestException(
+            'Không thể xác nhận thanh toán cho bài đăng miễn phí',
+          );
+        }
+        updateData.paymentStatus = 'PAID';
+        updateData.status = 'APPROVED';
+        break;
+
+      default:
+        throw new BadRequestException('Hành động không hợp lệ');
     }
 
     const updatedPost = await this.prisma.post.update({
@@ -344,11 +383,21 @@ export class PostsService {
 
     // TODO: Gửi thông báo cho người dùng nếu dto.notifyUser === true
 
+    let message = '';
+    switch (dto.action) {
+      case ModerateAction.APPROVE:
+        message = 'Bài đăng đã được phê duyệt thành công';
+        break;
+      case ModerateAction.REJECT:
+        message = 'Bài đăng đã bị từ chối';
+        break;
+      case ModerateAction.CONFIRM_PAYMENT:
+        message = 'Đã xác nhận thanh toán cho bài đăng';
+        break;
+    }
+
     return {
-      message:
-        dto.action === ModerateAction.APPROVE
-          ? 'Bài đăng đã được phê duyệt thành công'
-          : 'Bài đăng đã bị từ chối',
+      message,
       post: updatedPost,
     };
   }

@@ -65,6 +65,10 @@ export class CreatePostDto {
   @IsOptional()
   isPromoted?: boolean;
 
+  @IsBoolean()
+  @IsOptional()
+  isPaid?: boolean;
+
   @IsDateString()
   @IsOptional()
   promoteUntil?: string;

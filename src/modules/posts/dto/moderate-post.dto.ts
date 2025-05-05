@@ -9,6 +9,7 @@ import {
 export enum ModerateAction {
   APPROVE = 'approve',
   REJECT = 'reject',
+  CONFIRM_PAYMENT = 'confirm_payment',
 }
 
 export class ModeratePostDto {
@@ -22,5 +23,5 @@ export class ModeratePostDto {
 
   @IsBoolean()
   @IsOptional()
-  notifyUser?: boolean = true;
+  notifyUser?: boolean;
 }
