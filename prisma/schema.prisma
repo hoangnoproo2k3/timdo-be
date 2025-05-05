@@ -44,6 +44,13 @@ enum SubscriptionStatus {
   EXPIRED
 }
 
+enum SubscriptionAction {
+  NEW
+  RENEW
+  UPGRADE
+  BOOST
+}
+
 model User {
   id            Int            @id @default(autoincrement())
   email         String         @unique @db.VarChar(255)
@@ -78,34 +85,33 @@ model RefreshToken {
 }
 
 model Post {
-  id              Int             @id @default(autoincrement())
-  title           String          @db.VarChar(255)
-  slug            String          @unique @db.VarChar(255)
-  description     String          @db.Text
+  id              Int            @id @default(autoincrement())
+  title           String         @db.VarChar(255)
+  slug            String         @unique @db.VarChar(255)
+  description     String         @db.Text
   postType        PostType
-  status          PostStatus      @default(PENDING)
-  rejectionReason String?         @db.Text
-  isPaid          Boolean         @default(false)
-  paymentStatus   PaymentStatus?  @default(UNPAID)
-  packageId       Int?
-  package         ServicePackage? @relation(fields: [packageId], references: [id])
+  status          PostStatus     @default(PENDING)
+  rejectionReason String?        @db.Text
+  isPaid          Boolean        @default(false)
+  paymentStatus   PaymentStatus? @default(UNPAID)
   location        String?
-  address         String?         @db.VarChar(255)
-  phoneNumber     String?         @db.VarChar(20)
-  category        String?         @db.VarChar(100)
+  address         String?        @db.VarChar(255)
+  phoneNumber     String?        @db.VarChar(20)
+  category        String?        @db.VarChar(100)
   date            DateTime?
-  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user            User           @relation(fields: [userId], references: [id])
   userId          Int
   comments        Comment[]
   likes           Like[]
-  tags            Tag[]           @relation("PostTags")
+  tags            Tag[]          @relation("PostTags")
   media           Media[]
-  reports         Report[]        @relation("PostReports")
+  reports         Report[]       @relation("PostReports")
   subscriptions   Subscription[]
-  isPromoted      Boolean         @default(false)
+  isPromoted      Boolean        @default(false)
   promoteUntil    DateTime?
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  paymentProof    String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
   deletedAt       DateTime?
 
   @@index([userId])
@@ -186,13 +192,15 @@ model Media {
 model ServicePackage {
   id            Int            @id @default(autoincrement())
   name          String         @unique @db.VarChar(100)
+  description   String?        @db.Text
   price         Float
   duration      Int
+  features      String?        @db.Text
+  isActive      Boolean        @default(true)
   subscriptions Subscription[]
   payments      Payment[]
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
-  Post          Post[]
 }
 
 model Subscription {
@@ -203,6 +211,7 @@ model Subscription {
   postId    Int
   package   ServicePackage     @relation(fields: [packageId], references: [id], onDelete: Restrict)
   packageId Int
+  action    SubscriptionAction @default(NEW)
   startDate DateTime           @default(now())
   endDate   DateTime
   status    SubscriptionStatus @default(ACTIVE)

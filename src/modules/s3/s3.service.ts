@@ -24,7 +24,7 @@ export class S3Service {
 
   async createPresignedUrl(
     fileType: string,
-    folder: 'timdo' | 'nhatduoc',
+    folder: 'timdo' | 'nhatduoc' | 'payment-proofs',
   ): Promise<{
     uploadUrl: string;
     fileKey: string;
