@@ -7,6 +7,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { TokenCleanupModule } from './modules/cleanup/token-cleanup.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { S3Module } from './modules/s3/s3.module';
+import { BlogsModule } from './modules/blogs/blogs.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { S3Module } from './modules/s3/s3.module';
     TokenCleanupModule,
     PostsModule,
     S3Module,
+    BlogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
