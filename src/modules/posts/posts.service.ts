@@ -13,6 +13,12 @@ import { CreatePostDto } from './dto/create-post.dto';
 import { FindAllPostsDto } from './dto/find-all-posts.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
 
+interface MediaItem {
+  url: string;
+  type: string;
+  postId: number;
+}
+
 @Injectable()
 export class PostsService {
   constructor(private prisma: PrismaService) {}
@@ -41,13 +47,21 @@ export class PostsService {
         },
       });
 
+      const mediaToCreate: MediaItem[] = [];
+
       if (mediaItems && mediaItems.length > 0) {
-        await tx.media.createMany({
-          data: mediaItems.map((item) => ({
+        mediaToCreate.push(
+          ...mediaItems.map((item) => ({
             url: item.url,
             type: item.type,
             postId: post.id,
           })),
+        );
+      }
+
+      if (mediaToCreate.length > 0) {
+        await tx.media.createMany({
+          data: mediaToCreate,
         });
       }
 
@@ -86,6 +100,7 @@ export class PostsService {
       where: { id },
       select: {
         userId: true,
+        media: true,
       },
     });
 
@@ -102,16 +117,70 @@ export class PostsService {
       );
     }
 
-    if (updatePost.title) {
-      updatePost.slug = await generateUniqueSlug(this.prisma, updatePost.title);
-    }
+    return await this.prisma.$transaction(async (tx) => {
+      if (updatePost.title) {
+        updatePost.slug = await generateUniqueSlug(tx, updatePost.title);
+      }
 
-    const updatedPost = await this.prisma.post.update({
-      where: { id },
-      data: updatePost,
+      const { mediaItems, ...postData } = updatePost;
+
+      await tx.post.update({
+        where: { id },
+        data: postData,
+      });
+
+      // Xử lý media cho bài đăng
+      let shouldReplaceMedia = false;
+      const mediaToCreate: MediaItem[] = [];
+
+      // Kiểm tra xem có thay đổi media hay không
+      if (mediaItems !== undefined) {
+        shouldReplaceMedia = true;
+
+        if (mediaItems && mediaItems.length > 0) {
+          mediaItems.forEach((item) => {
+            mediaToCreate.push({
+              url: item.url,
+              type: item.type,
+              postId: id,
+            });
+          });
+        }
+      }
+
+      // Nếu cần thay thế media, xóa cái cũ và thêm cái mới
+      if (shouldReplaceMedia) {
+        if (post.media && post.media.length > 0) {
+          await tx.media.deleteMany({
+            where: { postId: id },
+          });
+        }
+
+        if (mediaToCreate.length > 0) {
+          await tx.media.createMany({
+            data: mediaToCreate,
+          });
+        }
+      }
+
+      // Return the updated post with media
+      const postWithMedia = await tx.post.findUnique({
+        where: { id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              avatarUrl: true,
+            },
+          },
+          media: true,
+        },
+      });
+
+      return postWithMedia;
     });
-
-    return updatedPost;
   }
 
   async getPosts(dto: FindAllPostsDto) {
