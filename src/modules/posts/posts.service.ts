@@ -5,13 +5,17 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
-import { JwtRequest } from '~/common/interfaces/request.interface';
-import { generateUniqueSlug } from '~/common/utils/slug.utils';
-import { PrismaService } from '~/prisma/prisma.service';
-import { CreatePostDto } from './dto/create-post.dto';
-import { FindAllPostsDto } from './dto/find-all-posts.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
+import { PostStatus, Prisma } from '@prisma/client';
+import { JwtRequest } from '~/common/interfaces';
+import { generateUniqueSlug } from '~/common/utils';
+import { PrismaService } from '~/prisma';
+import {
+  CreatePostDto,
+  FindAllPostsDto,
+  ModerateAction,
+  ModeratePostDto,
+  UpdatePostDto,
+} from './dto';
 
 interface MediaItem {
   url: string;
@@ -301,5 +305,51 @@ export class PostsService {
     }
 
     return this.prisma.post.delete({ where: { id: postId } });
+  }
+
+  async moderatePost(postId: number, dto: ModeratePostDto) {
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+      include: { user: true },
+    });
+
+    if (!post) {
+      throw new NotFoundException(`Không tìm thấy bài đăng với ID ${postId}`);
+    }
+
+    const updateData: Prisma.PostUpdateInput = {
+      status:
+        dto.action === ModerateAction.APPROVE
+          ? PostStatus.APPROVED
+          : PostStatus.REJECTED,
+    };
+
+    if (dto.action === ModerateAction.REJECT && dto.reason) {
+      updateData.rejectionReason = dto.reason;
+    }
+
+    const updatedPost = await this.prisma.post.update({
+      where: { id: postId },
+      data: updateData,
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+          },
+        },
+      },
+    });
+
+    // TODO: Gửi thông báo cho người dùng nếu dto.notifyUser === true
+
+    return {
+      message:
+        dto.action === ModerateAction.APPROVE
+          ? 'Bài đăng đã được phê duyệt thành công'
+          : 'Bài đăng đã bị từ chối',
+      post: updatedPost,
+    };
   }
 }

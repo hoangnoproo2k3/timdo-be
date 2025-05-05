@@ -8,15 +8,20 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { JwtRequest } from '~/common/interfaces/request.interface';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CreatePostDto } from './dto/create-post.dto';
-import { FindAllPostsDto } from './dto/find-all-posts.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
+import { Roles } from '~/common/decorators';
+import { JwtRequest } from '~/common/interfaces';
+import { JwtAuthGuard, RolesGuard } from '~/modules/auth/guards';
+import {
+  CreatePostDto,
+  FindAllPostsDto,
+  ModeratePostDto,
+  UpdatePostDto,
+} from './dto';
 import { PostsService } from './posts.service';
 
 @Controller('/v1/posts')
@@ -72,5 +77,15 @@ export class PostsController {
     @Req() req: JwtRequest,
   ) {
     return this.postsService.hardDeletePost(id, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @Put(':id/moderate')
+  async moderatePost(
+    @Param('id', ParseIntPipe) id: number,
+    @Body() moderatePostDto: ModeratePostDto,
+  ) {
+    return this.postsService.moderatePost(id, moderatePostDto);
   }
 }
