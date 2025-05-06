@@ -3,9 +3,7 @@ import {
   IsNotEmpty,
   IsOptional,
   IsEnum,
-  IsBoolean,
   IsInt,
-  IsDate,
   MaxLength,
   MinLength,
   IsArray,
@@ -27,8 +25,6 @@ export class MediaItemDto {
 export class CreateBlogDto {
   @IsString()
   @IsNotEmpty()
-  @MinLength(5)
-  @MaxLength(255)
   title: string;
 
   @IsString()
@@ -41,25 +37,6 @@ export class CreateBlogDto {
   @MaxLength(500)
   excerpt?: string;
 
-  @IsString()
-  @IsOptional()
-  @MaxLength(255)
-  featuredImage?: string;
-
-  @IsString()
-  @IsOptional()
-  @MaxLength(255)
-  metaTitle?: string;
-
-  @IsString()
-  @IsOptional()
-  @MaxLength(500)
-  metaDescription?: string;
-
-  @IsBoolean()
-  @IsOptional()
-  isFeatured?: boolean;
-
   @IsInt()
   @IsOptional()
   readingTime?: number;
@@ -68,9 +45,10 @@ export class CreateBlogDto {
   @IsOptional()
   status?: ArticleStatus;
 
-  @IsDate()
+  @IsArray()
+  @IsString({ each: true })
   @IsOptional()
-  publishedAt?: Date;
+  tags?: string[];
 
   @IsArray()
   @IsOptional()

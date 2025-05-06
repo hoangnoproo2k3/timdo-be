@@ -11,6 +11,7 @@ import { FindAllBlogDto } from './dto/find-all-blogs';
 import { Prisma } from '@prisma/client';
 import { UpdateBlogDto } from './dto/update-blog.dto';
 import { JwtRequest } from '~/common/interfaces/request.interface';
+import { ArticleStatus } from '@prisma/client';
 
 @Injectable()
 export class BlogsService {
@@ -30,13 +31,25 @@ export class BlogsService {
         throw new InternalServerErrorException('Generated slug is invalid');
       }
 
-      const { mediaItems, ...blogData } = createBlogDto;
+      const { mediaItems, tags, ...blogData } = createBlogDto;
 
       const article = await tx.article.create({
         data: {
           ...blogData,
           slug,
           userId,
+          tags: tags
+            ? {
+                // Tự động tạo tag nếu chưa tồn tại
+                connectOrCreate: tags.map((tag) => ({
+                  where: { name: tag }, // Tìm theo name hoặc slug tùy bạn
+                  create: {
+                    name: tag,
+                    slug: tag.toLowerCase().replace(/\s+/g, '-'),
+                  },
+                })),
+              }
+            : undefined,
         },
         include: {
           user: {
@@ -72,6 +85,7 @@ export class BlogsService {
             },
           },
           media: true,
+          tags: true,
         },
       });
 
@@ -89,6 +103,7 @@ export class BlogsService {
 
     const where: Prisma.ArticleWhereInput = {
       deletedAt: null,
+      status: ArticleStatus.APPROVED,
     };
 
     const search = dto.search?.trim();
@@ -129,6 +144,44 @@ export class BlogsService {
         currentPage: page,
         pageSize: limit,
       },
+    };
+  }
+
+  async getDetailBlog(blogId: number) {
+    const blog = await this.prisma.article.findUnique({
+      where: { id: blogId },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            avatarUrl: true,
+          },
+        },
+        tags: true,
+        media: true,
+        likes: true,
+        comments: true,
+        reports: true,
+        _count: {
+          select: {
+            comments: true,
+            likes: true,
+            reports: true,
+          },
+        },
+      },
+    });
+
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    return {
+      ...blog,
+      commentsCount: blog._count.comments,
+      likesCount: blog._count.likes,
     };
   }
 
@@ -229,44 +282,6 @@ export class BlogsService {
     });
   }
 
-  async getDetailBlog(blogId: number) {
-    const blog = await this.prisma.article.findUnique({
-      where: { id: blogId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            avatarUrl: true,
-          },
-        },
-        tags: true,
-        media: true,
-        likes: true,
-        comments: true,
-        reports: true,
-        _count: {
-          select: {
-            comments: true,
-            likes: true,
-            reports: true,
-          },
-        },
-      },
-    });
-
-    if (!blog) {
-      throw new NotFoundException('Blog not found');
-    }
-
-    return {
-      ...blog,
-      commentsCount: blog._count.comments,
-      likesCount: blog._count.likes,
-    };
-  }
-
   async softDeleteBlog(blogId: number, user: JwtRequest['user']) {
     const blog = await this.prisma.article.findUnique({
       where: { id: blogId },
@@ -314,5 +329,98 @@ export class BlogsService {
     return this.prisma.article.delete({
       where: { id: blogId },
     });
+  }
+
+  async approveBlog(blogId: number, user: JwtRequest['user']) {
+    const blog = await this.prisma.article.findUnique({
+      where: { id: blogId },
+    });
+
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    if (blog.status === ArticleStatus.APPROVED) {
+      throw new ForbiddenException('Blog is already approved');
+    }
+
+    const isOwner = blog.userId === user.userId;
+    const isAdmin = user.role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      throw new ForbiddenException(
+        'You do not have permission to approve this blog',
+      );
+    }
+
+    const updatedBlog = await this.prisma.article.update({
+      where: { id: blogId },
+      data: {
+        status: ArticleStatus.APPROVED,
+        publishedAt: new Date(),
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            avatarUrl: true,
+          },
+        },
+        media: true,
+      },
+    });
+
+    return {
+      message: 'Blog approved successfully',
+      article: updatedBlog,
+    };
+  }
+
+  async rejectBlog(blogId: number, user: JwtRequest['user']) {
+    const blog = await this.prisma.article.findUnique({
+      where: { id: blogId },
+    });
+
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    if (blog.status === ArticleStatus.REJECTED) {
+      throw new ForbiddenException('Blog is already rejected');
+    }
+
+    const isOwner = blog.userId === user.userId;
+    const isAdmin = user.role === 'admin';
+
+    if (!isOwner && !isAdmin) {
+      throw new ForbiddenException(
+        'You do not have permission to reject this blog',
+      );
+    }
+
+    const updatedBlog = await this.prisma.article.update({
+      where: { id: blogId },
+      data: {
+        status: ArticleStatus.REJECTED,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            email: true,
+            avatarUrl: true,
+          },
+        },
+        media: true,
+      },
+    });
+
+    return {
+      message: 'Blog rejected successfully',
+      article: updatedBlog,
+    };
   }
 }

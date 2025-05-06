@@ -74,4 +74,24 @@ export class BlogsController {
   ) {
     return this.blogsService.hardDeleteBlog(id, req.user);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/approve')
+  @HttpCode(HttpStatus.OK)
+  async approveBlog(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: JwtRequest,
+  ) {
+    return this.blogsService.approveBlog(id, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/reject')
+  @HttpCode(HttpStatus.OK)
+  async rejectBlog(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: JwtRequest,
+  ) {
+    return this.blogsService.rejectBlog(id, req.user);
+  }
 }

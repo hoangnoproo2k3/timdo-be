@@ -24,8 +24,9 @@ enum PostStatus {
 }
 
 enum ArticleStatus {
-  DRAFT
-  PUBLISHED
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum ReportStatus {
@@ -107,7 +108,7 @@ model Article {
   slug            String        @unique @db.VarChar(255)
   content         String        @db.Text
   excerpt         String?       @db.Text
-  status          ArticleStatus @default(DRAFT)
+  status          ArticleStatus @default(PENDING)
   views           Int           @default(0)
   publishedAt     DateTime?
   readingTime     Int?          @default(0)
