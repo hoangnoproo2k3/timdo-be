@@ -117,7 +117,7 @@ export class PostsService {
               action: 'NEW',
               startDate,
               endDate,
-              status: 'ACTIVE',
+              status: 'PENDING',
             },
           });
 
@@ -481,12 +481,21 @@ export class PostsService {
           const subscription = post.postSubscriptions[0];
           const payment = subscription.payment;
 
-          if (payment) {
+          if (
+            payment?.status === 'PENDING' &&
+            subscription.status === 'PENDING'
+          ) {
             await this.prisma.payment.update({
               where: { id: payment.id },
               data: {
                 status: 'PAID',
                 paidAt: new Date(),
+              },
+            });
+            await this.prisma.postSubscription.update({
+              where: { id: subscription.id },
+              data: {
+                status: 'ACTIVE',
               },
             });
           }
