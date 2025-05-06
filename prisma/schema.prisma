@@ -24,9 +24,9 @@ enum PostStatus {
 }
 
 enum PaymentStatus {
+  PENDING
   UNPAID
   PAID
-  PENDING
 }
 
 enum ArticleStatus {
@@ -42,34 +42,42 @@ enum ReportStatus {
 enum SubscriptionStatus {
   ACTIVE
   EXPIRED
+  CANCELLED
 }
 
 enum SubscriptionAction {
   NEW
   RENEW
   UPGRADE
-  BOOST
+}
+
+enum PackageType {
+  FREE
+  PRIORITY
+  EXPRESS
+  VIP
 }
 
 model User {
-  id            Int            @id @default(autoincrement())
-  email         String         @unique @db.VarChar(255)
-  password      String?        @db.VarChar(255)
-  googleId      String?        @unique
-  username      String         @db.VarChar(100)
-  role          Role           @default(USER)
-  avatarUrl     String?        @db.VarChar(255)
-  posts         Post[]
-  articles      Article[]
-  comments      Comment[]
-  likes         Like[]
-  reports       Report[]       @relation("UserReports")
-  notifications Notification[]
-  payments      Payment[]
-  subscriptions Subscription[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  RefreshToken  RefreshToken[]
+  id                Int                @id @default(autoincrement())
+  email             String             @unique @db.VarChar(255)
+  password          String?            @db.VarChar(255)
+  googleId          String?            @unique
+  username          String             @db.VarChar(100)
+  role              Role               @default(USER)
+  avatarUrl         String?            @db.VarChar(255)
+  posts             Post[]
+  articles          Article[]
+  comments          Comment[]
+  likes             Like[]
+  reports           Report[]           @relation("UserReports")
+  notifications     Notification[]
+  payments          Payment[]
+  postSubscriptions PostSubscription[]
+  boostTransactions BoostTransaction[]
+  RefreshToken      RefreshToken[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
 model RefreshToken {
@@ -85,37 +93,40 @@ model RefreshToken {
 }
 
 model Post {
-  id              Int            @id @default(autoincrement())
-  title           String         @db.VarChar(255)
-  slug            String         @unique @db.VarChar(255)
-  description     String         @db.Text
-  postType        PostType
-  status          PostStatus     @default(PENDING)
-  rejectionReason String?        @db.Text
-  isPaid          Boolean        @default(false)
-  paymentStatus   PaymentStatus? @default(UNPAID)
-  location        String?
-  address         String?        @db.VarChar(255)
-  phoneNumber     String?        @db.VarChar(20)
-  category        String?        @db.VarChar(100)
-  date            DateTime?
-  user            User           @relation(fields: [userId], references: [id])
-  userId          Int
-  comments        Comment[]
-  likes           Like[]
-  tags            Tag[]          @relation("PostTags")
-  media           Media[]
-  reports         Report[]       @relation("PostReports")
-  subscriptions   Subscription[]
-  isPromoted      Boolean        @default(false)
-  promoteUntil    DateTime?
-  paymentProof    String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  deletedAt       DateTime?
+  id                Int                @id @default(autoincrement())
+  title             String             @db.VarChar(255)
+  slug              String             @unique @db.VarChar(255)
+  description       String             @db.Text
+  postType          PostType
+  status            PostStatus         @default(PENDING)
+  rejectionReason   String?            @db.Text
+  location          String?
+  address           String?            @db.VarChar(255)
+  phoneNumber       String?            @db.VarChar(20)
+  category          String?            @db.VarChar(100)
+  date              DateTime?
+  user              User               @relation(fields: [userId], references: [id])
+  userId            Int
+  comments          Comment[]
+  likes             Like[]
+  tags              Tag[]              @relation("PostTags")
+  media             Media[]
+  reports           Report[]           @relation("PostReports")
+  postSubscriptions PostSubscription[]
+  viewCount         Int                @default(0)
+  // Boost related fields (separate from subscriptions)
+  isBoosted         Boolean            @default(false)
+  boostUntil        DateTime?
+  lastBoostedAt     DateTime?
+  boostTransactions BoostTransaction[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
 
   @@index([userId])
   @@index([postType, location])
+  @@index([isBoosted])
 }
 
 model Article {
@@ -190,49 +201,96 @@ model Media {
 }
 
 model ServicePackage {
-  id            Int            @id @default(autoincrement())
-  name          String         @unique @db.VarChar(100)
-  description   String?        @db.Text
-  price         Float
-  duration      Int
-  features      String?        @db.Text
-  isActive      Boolean        @default(true)
-  subscriptions Subscription[]
-  payments      Payment[]
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                Int                @id @default(autoincrement())
+  name              String             @unique @db.VarChar(100)
+  description       String?            @db.Text
+  price             Float
+  duration          Int
+  packageType       PackageType        @default(FREE)
+  position          Int                @default(0)
+  features          String?            @db.Text
+  postSubscriptions PostSubscription[]
+  payments          Payment[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 }
 
-model Subscription {
-  id        Int                @id @default(autoincrement())
-  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    Int
-  post      Post               @relation(fields: [postId], references: [id], onDelete: Cascade)
-  postId    Int
-  package   ServicePackage     @relation(fields: [packageId], references: [id], onDelete: Restrict)
-  packageId Int
-  action    SubscriptionAction @default(NEW)
-  startDate DateTime           @default(now())
-  endDate   DateTime
-  status    SubscriptionStatus @default(ACTIVE)
-  createdAt DateTime           @default(now())
-  updatedAt DateTime           @updatedAt
+// This model tracks the main package subscription for a post and its history
+model PostSubscription {
+  id                Int                @id @default(autoincrement())
+  post              Post               @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId            Int
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            Int
+  package           ServicePackage     @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  packageId         Int
+  action            SubscriptionAction @default(NEW) // NEW, RENEW, UPGRADE
+  startDate         DateTime           @default(now())
+  endDate           DateTime
+  previousPackageId Int? // For tracking upgrades - what was the previous package
+  previousEndDate   DateTime? // For tracking renewals - when the previous subscription would have ended
+  status            SubscriptionStatus @default(ACTIVE)
+  payment           Payment?
+  isAutoRenew       Boolean            @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
 
   @@index([postId])
+  @@index([userId])
+  @@index([packageId])
+  @@index([status])
 }
 
+// Payment can be associated with a package subscription or a boost transaction
 model Payment {
-  id            Int            @id @default(autoincrement())
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id            Int     @id @default(autoincrement())
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId        Int
-  package       ServicePackage @relation(fields: [packageId], references: [id], onDelete: Restrict)
-  packageId     Int
   amount        Float
-  transactionId String?        @unique @db.VarChar(255)
-  status        String         @default("PENDING")
-  paidAt        DateTime       @default(now())
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  proofImageUrl String? @db.VarChar(255)
+
+  // For package subscriptions
+  package            ServicePackage?   @relation(fields: [packageId], references: [id], onDelete: SetNull)
+  packageId          Int?
+  postSubscription   PostSubscription? @relation(fields: [postSubscriptionId], references: [id], onDelete: SetNull)
+  postSubscriptionId Int?              @unique // One payment per subscription
+
+  // For boost transactions
+  boostTransaction   BoostTransaction? @relation(fields: [boostTransactionId], references: [id], onDelete: SetNull)
+  boostTransactionId Int?              @unique // One payment per boost transaction
+
+  transactionId String?       @unique @db.VarChar(255)
+  paymentType   String        @default("PACKAGE") // PACKAGE or BOOST
+  status        PaymentStatus @default(PENDING)
+  paidAt        DateTime?
+  cancelledAt   DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([userId])
+  @@index([packageId])
+  @@index([status])
+}
+
+// Separate model for boost transactions
+model BoostTransaction {
+  id        Int      @id @default(autoincrement())
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  postId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+  price     Float
+  duration  Int
+  startDate DateTime @default(now())
+  endDate   DateTime
+  payment   Payment?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([postId])
+  @@index([userId])
+  @@index([isActive])
 }
 
 model Report {

@@ -8,6 +8,7 @@ import { TokenCleanupModule } from './modules/cleanup/token-cleanup.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { S3Module } from './modules/s3/s3.module';
 import { ServicesModule } from './modules/services/services.module';
+import { TasksModule } from './modules/tasks/tasks.module';
 
 @Module({
   imports: [
@@ -18,6 +19,7 @@ import { ServicesModule } from './modules/services/services.module';
     PostsModule,
     S3Module,
     ServicesModule,
+    TasksModule,
   ],
   controllers: [AppController],
   providers: [AppService],
