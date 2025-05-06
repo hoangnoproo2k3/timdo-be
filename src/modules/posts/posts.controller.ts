@@ -88,4 +88,43 @@ export class PostsController {
   ) {
     return this.postsService.moderatePost(id, moderatePostDto);
   }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/upgrade')
+  upgradePackage(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('packageId', ParseIntPipe) packageId: number,
+    @Req() req: JwtRequest,
+  ) {
+    return this.postsService.upgradePackage(id, packageId, req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/renew')
+  renewPackage(@Param('id', ParseIntPipe) id: number, @Req() req: JwtRequest) {
+    return this.postsService.renewPackage(id, req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/boost')
+  boostPost(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('duration', ParseIntPipe) duration: number,
+    @Body('price') price: number,
+    @Req() req: JwtRequest,
+  ) {
+    return this.postsService.boostPost(id, duration, req.user.userId, price);
+  }
+
+  @Get('stats/packages')
+  @UseGuards(JwtAuthGuard)
+  async getPackageStats(@Req() req: JwtRequest) {
+    return this.postsService.getUserPackageStats(req.user.userId);
+  }
+
+  @Get('stats/boosts')
+  @UseGuards(JwtAuthGuard)
+  async getBoostStats(@Req() req: JwtRequest) {
+    return this.postsService.getUserBoostStats(req.user.userId);
+  }
 }

@@ -46,20 +46,16 @@ export class PostsService {
         throw new InternalServerErrorException('Generated slug is invalid');
       }
 
-      const { mediaItems, ...postData } = createPostDto;
+      const { mediaItems, packageId, paymentProofUrl, ...postData } =
+        createPostDto;
 
       let initialStatus: PostStatus = 'PENDING';
 
-      // Nếu là bài nhặt được -> always auto-approve
       if (postData.postType === 'FOUND') {
         initialStatus = 'APPROVED';
-      }
-      // Nếu là admin -> always auto-approve
-      else if (user.role === 'ADMIN') {
+      } else if (user.role === 'ADMIN') {
         initialStatus = 'APPROVED';
-      }
-      // Nếu là bài trả phí của user thường -> APPROVED nhưng paymentStatus = 'unpaid'
-      else if ('isPaid' in createPostDto && createPostDto.isPaid) {
+      } else if (packageId && packageId > 1) {
         initialStatus = 'APPROVED';
       }
 
@@ -90,6 +86,55 @@ export class PostsService {
         });
       }
 
+      if (postData.postType === 'LOST' && packageId) {
+        const servicePackage = await tx.servicePackage.findUnique({
+          where: { id: packageId },
+        });
+
+        if (!servicePackage) {
+          throw new NotFoundException(
+            `Không tìm thấy gói dịch vụ với ID ${packageId}`,
+          );
+        }
+
+        // FREE Package - no subscription and no payment required
+        if (
+          servicePackage.packageType === 'FREE' ||
+          servicePackage.price === 0
+        ) {
+          // No need to do anything
+        } else {
+          // Calculate service package end time
+          const startDate = new Date();
+          const endDate = new Date();
+          endDate.setDate(endDate.getDate() + servicePackage.duration);
+
+          const subscription = await tx.postSubscription.create({
+            data: {
+              userId,
+              postId: post.id,
+              packageId,
+              action: 'NEW',
+              startDate,
+              endDate,
+              status: 'ACTIVE',
+            },
+          });
+
+          await tx.payment.create({
+            data: {
+              userId,
+              packageId,
+              postSubscriptionId: subscription.id,
+              amount: servicePackage.price,
+              paymentType: 'PACKAGE',
+              status: 'PENDING',
+              proofImageUrl: paymentProofUrl,
+            },
+          });
+        }
+      }
+
       const postWithMedia = await tx.post.findUnique({
         where: { id: post.id },
         include: {
@@ -103,6 +148,16 @@ export class PostsService {
             },
           },
           media: true,
+          postSubscriptions: {
+            include: {
+              package: true,
+              payment: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
+          },
         },
       });
 
@@ -202,6 +257,16 @@ export class PostsService {
             },
           },
           media: true,
+          postSubscriptions: {
+            include: {
+              package: true,
+              payment: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
+          },
         },
       });
 
@@ -242,6 +307,24 @@ export class PostsService {
             },
           },
           media: true,
+          postSubscriptions: {
+            include: {
+              package: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
+          },
+          boostTransactions: {
+            where: {
+              isActive: true,
+              endDate: {
+                gte: new Date(),
+              },
+            },
+            take: 1,
+          },
         },
       }),
       this.prisma.post.count({ where }),
@@ -275,13 +358,28 @@ export class PostsService {
         likes: true,
         comments: true,
         reports: true,
-        subscriptions: true,
+        postSubscriptions: {
+          include: {
+            package: true,
+            payment: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
+        boostTransactions: {
+          include: {
+            payment: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
         _count: {
           select: {
             comments: true,
             likes: true,
             reports: true,
-            subscriptions: true,
           },
         },
       },
@@ -290,6 +388,16 @@ export class PostsService {
     if (!post) {
       throw new NotFoundException('Post not found');
     }
+
+    // Increment view count
+    await this.prisma.post.update({
+      where: { id: postId },
+      data: {
+        viewCount: {
+          increment: 1,
+        },
+      },
+    });
 
     return {
       ...post,
@@ -332,7 +440,19 @@ export class PostsService {
   async moderatePost(postId: number, dto: ModeratePostDto) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
-      include: { user: true },
+      include: {
+        user: true,
+        postSubscriptions: {
+          include: {
+            package: true,
+            payment: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
+        },
+      },
     });
 
     if (!post) {
@@ -354,13 +474,23 @@ export class PostsService {
         break;
 
       case ModerateAction.CONFIRM_PAYMENT:
-        if (!post.isPaid) {
-          throw new BadRequestException(
-            'Không thể xác nhận thanh toán cho bài đăng miễn phí',
-          );
-        }
-        updateData.paymentStatus = 'PAID';
         updateData.status = 'APPROVED';
+
+        // Update payment status in Payment table
+        if (post.postSubscriptions && post.postSubscriptions.length > 0) {
+          const subscription = post.postSubscriptions[0];
+          const payment = subscription.payment;
+
+          if (payment) {
+            await this.prisma.payment.update({
+              where: { id: payment.id },
+              data: {
+                status: 'PAID',
+                paidAt: new Date(),
+              },
+            });
+          }
+        }
         break;
 
       default:
@@ -377,6 +507,16 @@ export class PostsService {
             username: true,
             email: true,
           },
+        },
+        postSubscriptions: {
+          include: {
+            package: true,
+            payment: true,
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+          take: 1,
         },
       },
     });
@@ -400,5 +540,528 @@ export class PostsService {
       message,
       post: updatedPost,
     };
+  }
+
+  /**
+   * Nâng cấp gói dịch vụ cho bài đăng
+   */
+  async upgradePackage(postId: number, newPackageId: number, userId: number) {
+    return await this.prisma.$transaction(async (tx) => {
+      // Kiểm tra bài đăng và quyền hạn
+      const post = await tx.post.findUnique({
+        where: { id: postId },
+        include: {
+          postSubscriptions: {
+            where: { status: 'ACTIVE' },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: {
+              package: true,
+            },
+          },
+        },
+      });
+
+      if (!post) {
+        throw new NotFoundException('Bài đăng không tồn tại');
+      }
+
+      if (post.userId !== userId) {
+        throw new ForbiddenException(
+          'Bạn không có quyền nâng cấp bài đăng này',
+        );
+      }
+
+      // Kiểm tra gói mới
+      const newPackage = await tx.servicePackage.findUnique({
+        where: { id: newPackageId },
+      });
+
+      if (!newPackage) {
+        throw new NotFoundException('Gói dịch vụ không tồn tại');
+      }
+
+      // Kiểm tra subscription hiện tại
+      if (!post.postSubscriptions || post.postSubscriptions.length === 0) {
+        throw new BadRequestException(
+          'Bài đăng không có gói dịch vụ để nâng cấp',
+        );
+      }
+
+      const currentSubscription = post.postSubscriptions[0];
+      const prevPackageId = currentSubscription.packageId;
+
+      // Tạo subscription mới và cập nhật subscription cũ
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + newPackage.duration);
+
+      // Cập nhật subscription hiện tại
+      await tx.postSubscription.update({
+        where: { id: currentSubscription.id },
+        data: {
+          status: 'CANCELLED',
+        },
+      });
+
+      // Tạo subscription mới
+      const newSubscription = await tx.postSubscription.create({
+        data: {
+          userId,
+          postId,
+          packageId: newPackageId,
+          action: 'UPGRADE',
+          startDate,
+          endDate,
+          previousPackageId: prevPackageId,
+          previousEndDate: currentSubscription.endDate,
+          status: 'ACTIVE',
+        },
+      });
+
+      // Tạo payment cho subscription mới
+      const payment = await tx.payment.create({
+        data: {
+          userId,
+          packageId: newPackageId,
+          postSubscriptionId: newSubscription.id,
+          amount: newPackage.price,
+          paymentType: 'PACKAGE',
+          status: 'PENDING',
+        },
+      });
+
+      // Cập nhật thông tin bài đăng
+      // await tx.post.update({
+      //   where: { id: postId },
+      //   data: {
+      //     isPaid: true,
+      //     paymentStatus: 'UNPAID',
+      //   },
+      // });
+
+      return {
+        message:
+          'Đã nâng cấp gói dịch vụ thành công, vui lòng thanh toán để kích hoạt',
+        subscription: newSubscription,
+        payment,
+      };
+    });
+  }
+
+  /**
+   * Gia hạn gói dịch vụ cho bài đăng
+   */
+  async renewPackage(postId: number, userId: number) {
+    return await this.prisma.$transaction(async (tx) => {
+      // Kiểm tra bài đăng và quyền hạn
+      const post = await tx.post.findUnique({
+        where: { id: postId },
+        include: {
+          postSubscriptions: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+            include: {
+              package: true,
+            },
+          },
+        },
+      });
+
+      if (!post) {
+        throw new NotFoundException('Bài đăng không tồn tại');
+      }
+
+      if (post.userId !== userId) {
+        throw new ForbiddenException('Bạn không có quyền gia hạn bài đăng này');
+      }
+
+      // Kiểm tra subscription
+      if (!post.postSubscriptions || post.postSubscriptions.length === 0) {
+        throw new BadRequestException(
+          'Bài đăng không có gói dịch vụ để gia hạn',
+        );
+      }
+
+      const currentSubscription = post.postSubscriptions[0];
+      const currentPackage = currentSubscription.package;
+
+      // Tạo subscription mới
+      const startDate = new Date(currentSubscription.endDate);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + currentPackage.duration);
+
+      const newSubscription = await tx.postSubscription.create({
+        data: {
+          userId,
+          postId,
+          packageId: currentPackage.id,
+          action: 'RENEW',
+          startDate,
+          endDate,
+          previousEndDate: currentSubscription.endDate,
+          status: 'ACTIVE',
+        },
+      });
+
+      // Tạo payment cho subscription mới
+      const payment = await tx.payment.create({
+        data: {
+          userId,
+          packageId: currentPackage.id,
+          postSubscriptionId: newSubscription.id,
+          amount: currentPackage.price,
+          paymentType: 'PACKAGE',
+          status: 'PENDING',
+        },
+      });
+
+      return {
+        message:
+          'Đã gia hạn gói dịch vụ thành công, vui lòng thanh toán để kích hoạt',
+        subscription: newSubscription,
+        payment,
+      };
+    });
+  }
+
+  /**
+   * Đẩy tin lên top
+   */
+  async boostPost(
+    postId: number,
+    boostDuration: number,
+    userId: number,
+    price?: number,
+  ) {
+    return await this.prisma.$transaction(async (tx) => {
+      // Kiểm tra bài đăng và quyền hạn
+      const post = await tx.post.findUnique({
+        where: { id: postId },
+      });
+
+      if (!post) {
+        throw new NotFoundException('Bài đăng không tồn tại');
+      }
+
+      if (post.userId !== userId) {
+        throw new ForbiddenException('Bạn không có quyền đẩy tin bài đăng này');
+      }
+
+      // Tính giá đẩy tin nếu không được cung cấp
+      const boostPrice = price || this.calculateBoostPrice(boostDuration);
+
+      // Tạo thông tin đẩy tin mới
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + boostDuration);
+
+      const boostTransaction = await tx.boostTransaction.create({
+        data: {
+          postId,
+          userId,
+          price: boostPrice,
+          duration: boostDuration,
+          startDate,
+          endDate,
+          isActive: true,
+        },
+      });
+
+      // Tạo payment cho boost transaction
+      const payment = await tx.payment.create({
+        data: {
+          userId,
+          boostTransactionId: boostTransaction.id,
+          amount: boostPrice,
+          paymentType: 'BOOST',
+          status: 'PENDING',
+        },
+      });
+
+      // Cập nhật thông tin bài đăng
+      await tx.post.update({
+        where: { id: postId },
+        data: {
+          isBoosted: true,
+          boostUntil: endDate,
+          lastBoostedAt: new Date(),
+        },
+      });
+
+      return {
+        message:
+          'Đã đăng ký đẩy tin thành công, vui lòng thanh toán để kích hoạt',
+        boostTransaction,
+        payment,
+      };
+    });
+  }
+
+  /**
+   * Tính giá đẩy tin dựa trên thời gian
+   */
+  private calculateBoostPrice(duration: number): number {
+    // Giá cơ bản cho 1 ngày
+    const basePrice = 10000;
+
+    // Tính giá theo công thức, có giảm giá khi mua nhiều ngày
+    let price = basePrice * duration;
+
+    // Giảm giá khi thời gian đẩy tin dài
+    if (duration >= 7) {
+      price = price * 0.9; // Giảm 10% cho 7+ ngày
+    }
+    if (duration >= 30) {
+      price = price * 0.8; // Giảm thêm 20% cho 30+ ngày
+    }
+
+    return price;
+  }
+
+  /**
+   * Kiểm tra và update trạng thái boost hết hạn
+   */
+  async checkAndUpdateExpiredBoosts() {
+    const now = new Date();
+
+    // Tìm các bài viết có trạng thái boost đã hết hạn
+    const expiredBoosts = await this.prisma.post.findMany({
+      where: {
+        isBoosted: true,
+        boostUntil: {
+          lt: now,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    // Cập nhật trạng thái boost
+    if (expiredBoosts.length > 0) {
+      await this.prisma.post.updateMany({
+        where: {
+          id: {
+            in: expiredBoosts.map((post) => post.id),
+          },
+        },
+        data: {
+          isBoosted: false,
+        },
+      });
+
+      // Cập nhật trạng thái của các boost transaction liên quan
+      await this.prisma.boostTransaction.updateMany({
+        where: {
+          postId: {
+            in: expiredBoosts.map((post) => post.id),
+          },
+          endDate: {
+            lt: now,
+          },
+          isActive: true,
+        },
+        data: {
+          isActive: false,
+        },
+      });
+
+      console.log(`Updated ${expiredBoosts.length} expired boost posts`);
+    }
+  }
+
+  /**
+   * Lấy thống kê về các gói dịch vụ của người dùng
+   */
+  async getUserPackageStats(userId: number) {
+    const postPackages = await this.prisma.postSubscription.findMany({
+      where: {
+        userId,
+      },
+      include: {
+        package: true,
+        post: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            postType: true,
+            status: true,
+          },
+        },
+        payment: {
+          select: {
+            id: true,
+            amount: true,
+            status: true,
+            paymentType: true,
+            paidAt: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Tính toán các thống kê
+    const stats = {
+      totalSubscriptions: postPackages.length,
+      activeSubscriptions: postPackages.filter((sub) => sub.status === 'ACTIVE')
+        .length,
+      expiredSubscriptions: postPackages.filter(
+        (sub) => sub.status === 'EXPIRED',
+      ).length,
+      cancelledSubscriptions: postPackages.filter(
+        (sub) => sub.status === 'CANCELLED',
+      ).length,
+
+      totalSpent: postPackages
+        .filter((sub) => sub.payment?.status === 'PAID')
+        .reduce((total, sub) => total + (sub.payment?.amount || 0), 0),
+
+      packagesByType: {
+        BASIC: postPackages.filter((sub) => sub.package.packageType === 'FREE')
+          .length,
+        STANDARD: postPackages.filter(
+          (sub) => sub.package.packageType === 'PRIORITY',
+        ).length,
+        PREMIUM: postPackages.filter(
+          (sub) => sub.package.packageType === 'EXPRESS',
+        ).length,
+      },
+
+      actionStats: {
+        NEW: postPackages.filter((sub) => sub.action === 'NEW').length,
+        RENEW: postPackages.filter((sub) => sub.action === 'RENEW').length,
+        UPGRADE: postPackages.filter((sub) => sub.action === 'UPGRADE').length,
+      },
+
+      // Danh sách gói đăng ký đang hoạt động
+      activePackages: postPackages
+        .filter((sub) => sub.status === 'ACTIVE')
+        .map((sub) => ({
+          subscriptionId: sub.id,
+          packageName: sub.package.name,
+          packageType: sub.package.packageType,
+          postTitle: sub.post.title,
+          postId: sub.post.id,
+          startDate: sub.startDate,
+          endDate: sub.endDate,
+          daysRemaining: Math.ceil(
+            (new Date(sub.endDate).getTime() - new Date().getTime()) /
+              (1000 * 60 * 60 * 24),
+          ),
+          paymentStatus: sub.payment?.status || 'UNKNOWN',
+        })),
+
+      // Lịch sử đăng ký
+      recentActivity: postPackages.slice(0, 10).map((sub) => ({
+        subscriptionId: sub.id,
+        packageName: sub.package.name,
+        packageType: sub.package.packageType,
+        postTitle: sub.post.title,
+        postId: sub.post.id,
+        action: sub.action,
+        status: sub.status,
+        createdAt: sub.createdAt,
+        paymentStatus: sub.payment?.status || 'UNKNOWN',
+      })),
+    };
+
+    return stats;
+  }
+
+  /**
+   * Lấy thống kê về các lần đẩy tin của người dùng
+   */
+  async getUserBoostStats(userId: number) {
+    const boostTransactions = await this.prisma.boostTransaction.findMany({
+      where: {
+        userId,
+      },
+      include: {
+        post: {
+          select: {
+            id: true,
+            title: true,
+            slug: true,
+            postType: true,
+            status: true,
+          },
+        },
+        payment: {
+          select: {
+            id: true,
+            amount: true,
+            status: true,
+            paymentType: true,
+            paidAt: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+
+    // Tính toán các thống kê
+    const stats = {
+      totalBoosts: boostTransactions.length,
+      activeBoosts: boostTransactions.filter((boost) => boost.isActive).length,
+      completedBoosts: boostTransactions.filter(
+        (boost) => !boost.isActive && new Date() > new Date(boost.endDate),
+      ).length,
+
+      totalSpent: boostTransactions
+        .filter((boost) => boost.payment?.status === 'PAID')
+        .reduce((total, boost) => total + (boost.payment?.amount || 0), 0),
+
+      // Phân tích theo thời hạn đẩy tin
+      durationStats: {
+        lessThan7Days: boostTransactions.filter((boost) => boost.duration < 7)
+          .length,
+        from7To30Days: boostTransactions.filter(
+          (boost) => boost.duration >= 7 && boost.duration < 30,
+        ).length,
+        moreThan30Days: boostTransactions.filter(
+          (boost) => boost.duration >= 30,
+        ).length,
+      },
+
+      // Danh sách đẩy tin đang hoạt động
+      // activeBoosts: boostTransactions
+      //   .filter((boost) => boost.isActive)
+      //   .map((boost) => ({
+      //     boostId: boost.id,
+      //     postTitle: boost.post.title,
+      //     postId: boost.post.id,
+      //     startDate: boost.startDate,
+      //     endDate: boost.endDate,
+      //     daysRemaining: Math.ceil(
+      //       (new Date(boost.endDate).getTime() - new Date().getTime()) /
+      //         (1000 * 60 * 60 * 24),
+      //     ),
+      //     price: boost.price,
+      //     paymentStatus: boost.payment?.status || 'UNKNOWN',
+      //   })),
+
+      // Lịch sử đẩy tin
+      recentActivity: boostTransactions.slice(0, 10).map((boost) => ({
+        boostId: boost.id,
+        postTitle: boost.post.title,
+        postId: boost.post.id,
+        startDate: boost.startDate,
+        endDate: boost.endDate,
+        duration: boost.duration,
+        price: boost.price,
+        isActive: boost.isActive,
+        paymentStatus: boost.payment?.status || 'UNKNOWN',
+        createdAt: boost.createdAt,
+      })),
+    };
+
+    return stats;
   }
 }
