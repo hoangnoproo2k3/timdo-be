@@ -5,7 +5,14 @@ import {
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
-import { PostStatus, Prisma } from '@prisma/client';
+import {
+  PaymentStatus,
+  PostStatus,
+  PostType,
+  Prisma,
+  Role,
+  SubscriptionStatus,
+} from '@prisma/client';
 import { JwtRequest } from '~/common/interfaces';
 import { generateUniqueSlug } from '~/common/utils';
 import { PrismaService } from '~/prisma';
@@ -49,14 +56,14 @@ export class PostsService {
       const { mediaItems, packageId, paymentProofUrl, ...postData } =
         createPostDto;
 
-      let initialStatus: PostStatus = 'PENDING';
+      let initialStatus: PostStatus = PostStatus.PENDING;
 
-      if (postData.postType === 'FOUND') {
-        initialStatus = 'APPROVED';
-      } else if (user.role === 'ADMIN') {
-        initialStatus = 'APPROVED';
+      if (postData.postType === PostType.FOUND) {
+        initialStatus = PostStatus.APPROVED;
+      } else if (user.role === Role.ADMIN) {
+        initialStatus = PostStatus.APPROVED;
       } else if (packageId && packageId > 1) {
-        initialStatus = 'APPROVED';
+        initialStatus = PostStatus.APPROVED;
       }
 
       const post = await tx.post.create({
@@ -128,7 +135,7 @@ export class PostsService {
               postSubscriptionId: subscription.id,
               amount: servicePackage.price,
               paymentType: 'PACKAGE',
-              status: 'PENDING',
+              status: PaymentStatus.PENDING,
               proofImageUrl: paymentProofUrl,
             },
           });
@@ -283,6 +290,16 @@ export class PostsService {
       deletedAt: null,
     };
 
+    // Filter by status if provided
+    if (dto.status) {
+      where.status = dto.status;
+    }
+
+    // Filter by post type if provided
+    if (dto.postType) {
+      where.postType = dto.postType;
+    }
+
     const search = dto.search?.trim();
     if (search) {
       where.OR = [
@@ -310,6 +327,7 @@ export class PostsService {
           postSubscriptions: {
             include: {
               package: true,
+              payment: true,
             },
             orderBy: {
               createdAt: 'desc',
@@ -330,8 +348,32 @@ export class PostsService {
       this.prisma.post.count({ where }),
     ]);
 
+    // Process posts to add convenience properties for the frontend
+    const processedPosts = posts.map((post) => {
+      console.log(post.postSubscriptions, post.id);
+
+      const latestSubscription = post.postSubscriptions?.[0];
+      const payment = latestSubscription?.payment;
+
+      console.log(latestSubscription);
+
+      return {
+        ...post,
+        // Add isPaid property based on subscription data
+        isPaid: !!latestSubscription && latestSubscription.packageId > 1,
+        // Add paymentStatus property based on payment data
+        paymentStatus: payment?.status,
+        // Include whether post requires payment confirmation
+        needsPaymentConfirmation:
+          // post.status === PostStatus.PENDING &&
+          !!latestSubscription &&
+          latestSubscription.packageId > 1 &&
+          payment?.status === PostStatus.PENDING,
+      };
+    });
+
     return {
-      data: posts,
+      data: processedPosts,
       meta: {
         totalItems: total,
         totalPages: Math.ceil(total / limit),
@@ -399,10 +441,15 @@ export class PostsService {
       },
     });
 
+    const latestSubscription = post.postSubscriptions?.[0];
+    const payment = latestSubscription?.payment;
+
     return {
       ...post,
       commentsCount: post._count.comments,
       likesCount: post._count.likes,
+      isPaid: !!latestSubscription && latestSubscription.packageId > 1,
+      paymentStatus: payment?.status,
     };
   }
 
@@ -482,20 +529,20 @@ export class PostsService {
           const payment = subscription.payment;
 
           if (
-            payment?.status === 'PENDING' &&
-            subscription.status === 'PENDING'
+            payment?.status === PaymentStatus.PENDING &&
+            subscription.status === SubscriptionStatus.PENDING
           ) {
             await this.prisma.payment.update({
               where: { id: payment.id },
               data: {
-                status: 'PAID',
+                status: PaymentStatus.PAID,
                 paidAt: new Date(),
               },
             });
             await this.prisma.postSubscription.update({
               where: { id: subscription.id },
               data: {
-                status: 'ACTIVE',
+                status: SubscriptionStatus.ACTIVE,
               },
             });
           }
@@ -636,7 +683,7 @@ export class PostsService {
           postSubscriptionId: newSubscription.id,
           amount: newPackage.price,
           paymentType: 'PACKAGE',
-          status: 'PENDING',
+          status: PaymentStatus.PENDING,
         },
       });
 
@@ -721,7 +768,7 @@ export class PostsService {
           postSubscriptionId: newSubscription.id,
           amount: currentPackage.price,
           paymentType: 'PACKAGE',
-          status: 'PENDING',
+          status: PaymentStatus.PENDING,
         },
       });
 
@@ -784,7 +831,7 @@ export class PostsService {
           boostTransactionId: boostTransaction.id,
           amount: boostPrice,
           paymentType: 'BOOST',
-          status: 'PENDING',
+          status: PaymentStatus.PENDING,
         },
       });
 
@@ -1072,5 +1119,163 @@ export class PostsService {
     };
 
     return stats;
+  }
+
+  async getPostsNeedingModeration(page = 1, limit = 15) {
+    const skip = (page - 1) * limit;
+
+    const [posts, total] = await this.prisma.$transaction([
+      this.prisma.post.findMany({
+        where: {
+          status: PostStatus.PENDING,
+          deletedAt: null,
+          postType: PostType.LOST,
+        },
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              avatarUrl: true,
+            },
+          },
+          media: true,
+          postSubscriptions: {
+            where: {
+              status: SubscriptionStatus.PENDING,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1, // chỉ lấy cái mới nhất nếu có
+            include: {
+              package: {
+                select: {
+                  id: true,
+                  name: true,
+                  packageType: true,
+                },
+              },
+            },
+          },
+        },
+      }),
+      this.prisma.post.count({
+        where: {
+          status: PostStatus.PENDING,
+          deletedAt: null,
+          postType: PostType.LOST,
+        },
+      }),
+    ]);
+
+    // Gắn flag trực tiếp vào kết quả
+    const processedPosts = posts.map((post) => {
+      const latestSub = post.postSubscriptions[0] || null;
+
+      return {
+        ...post,
+        postSubscriptions: latestSub ? [latestSub] : [],
+        hasPendingSubscription: !!latestSub,
+        packageType: latestSub?.package?.packageType || null,
+      };
+    });
+
+    return {
+      data: processedPosts,
+      meta: {
+        totalItems: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        pageSize: limit,
+      },
+    };
+  }
+
+  async getPostsNeedingPaymentConfirmation(page = 1, limit = 15) {
+    const skip = (page - 1) * limit;
+
+    const [subscriptions, total] = await this.prisma.$transaction([
+      this.prisma.postSubscription.findMany({
+        where: {
+          status: SubscriptionStatus.PENDING,
+          payment: {
+            status: PaymentStatus.PENDING,
+          },
+          post: {
+            deletedAt: null,
+          },
+        },
+        skip,
+        take: limit,
+        orderBy: {
+          createdAt: 'desc',
+        },
+        include: {
+          post: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  email: true,
+                  avatarUrl: true,
+                },
+              },
+              media: true,
+            },
+          },
+          package: {
+            select: {
+              id: true,
+              name: true,
+              price: true,
+              packageType: true,
+            },
+          },
+          payment: {
+            select: {
+              id: true,
+              amount: true,
+              status: true,
+              proofImageUrl: true,
+              createdAt: true,
+            },
+          },
+        },
+      }),
+      this.prisma.postSubscription.count({
+        where: {
+          status: SubscriptionStatus.PENDING,
+          payment: {
+            status: PaymentStatus.PENDING,
+          },
+          post: {
+            deletedAt: null,
+          },
+        },
+      }),
+    ]);
+
+    const posts = subscriptions.map((sub) => ({
+      ...sub.post,
+      postSubscriptions: [sub],
+      needsPaymentConfirmation: true,
+      paymentStatus: PaymentStatus.PENDING,
+    }));
+
+    return {
+      data: posts,
+      meta: {
+        totalItems: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        pageSize: limit,
+      },
+    };
   }
 }

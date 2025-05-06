@@ -127,4 +127,20 @@ export class PostsController {
   async getBoostStats(@Req() req: JwtRequest) {
     return this.postsService.getUserBoostStats(req.user.userId);
   }
+
+  @Get('moderation/pending')
+  async getPostsNeedingModeration(
+    @Query('page', ParseIntPipe) page: number,
+    @Query('limit', ParseIntPipe) limit: number,
+  ) {
+    return this.postsService.getPostsNeedingModeration(page, limit);
+  }
+
+  @Get('moderation/payment-pending')
+  async getPostsNeedingPaymentConfirmation(
+    @Query('page', ParseIntPipe) page: number,
+    @Query('limit', ParseIntPipe) limit: number,
+  ) {
+    return this.postsService.getPostsNeedingPaymentConfirmation(page, limit);
+  }
 }
