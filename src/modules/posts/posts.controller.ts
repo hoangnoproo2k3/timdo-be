@@ -8,20 +8,13 @@ import {
   Param,
   ParseIntPipe,
   Post,
-  Put,
   Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { Roles } from '~/common/decorators';
 import { JwtRequest } from '~/common/interfaces';
-import { JwtAuthGuard, RolesGuard } from '~/modules/auth/guards';
-import {
-  CreatePostDto,
-  FindAllPostsDto,
-  ModeratePostDto,
-  UpdatePostDto,
-} from './dto';
+import { JwtAuthGuard } from '~/modules/auth/guards';
+import { CreatePostDto, FindAllPostsDto, UpdatePostDto } from './dto';
 import { PostsService } from './posts.service';
 
 @Controller('/v1/posts')
@@ -79,16 +72,6 @@ export class PostsController {
     return this.postsService.hardDeletePost(id, req.user);
   }
 
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles('ADMIN')
-  @Put(':id/moderate')
-  async moderatePost(
-    @Param('id', ParseIntPipe) id: number,
-    @Body() moderatePostDto: ModeratePostDto,
-  ) {
-    return this.postsService.moderatePost(id, moderatePostDto);
-  }
-
   @UseGuards(JwtAuthGuard)
   @Post(':id/upgrade')
   upgradePackage(
@@ -126,21 +109,5 @@ export class PostsController {
   @UseGuards(JwtAuthGuard)
   async getBoostStats(@Req() req: JwtRequest) {
     return this.postsService.getUserBoostStats(req.user.userId);
-  }
-
-  @Get('moderation/pending')
-  async getPostsNeedingModeration(
-    @Query('page', ParseIntPipe) page: number,
-    @Query('limit', ParseIntPipe) limit: number,
-  ) {
-    return this.postsService.getPostsNeedingModeration(page, limit);
-  }
-
-  @Get('moderation/payment-pending')
-  async getPostsNeedingPaymentConfirmation(
-    @Query('page', ParseIntPipe) page: number,
-    @Query('limit', ParseIntPipe) limit: number,
-  ) {
-    return this.postsService.getPostsNeedingPaymentConfirmation(page, limit);
   }
 }
