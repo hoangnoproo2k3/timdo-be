@@ -8,6 +8,7 @@ import {
   MinLength,
   IsArray,
   ValidateNested,
+  IsISO8601,
 } from 'class-validator';
 import { ArticleStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
@@ -20,6 +21,20 @@ export class MediaItemDto {
   @IsString()
   @IsNotEmpty()
   type: string;
+}
+
+export class TagDto {
+  @IsInt()
+  @IsOptional()
+  id?: number;
+
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsInt()
+  @IsOptional()
+  count?: number;
 }
 
 export class CreateBlogDto {
@@ -37,6 +52,10 @@ export class CreateBlogDto {
   @MaxLength(500)
   excerpt?: string;
 
+  @IsISO8601({ strict: true })
+  @IsOptional()
+  publishedAt?: string;
+
   @IsInt()
   @IsOptional()
   readingTime?: number;
@@ -46,9 +65,10 @@ export class CreateBlogDto {
   status?: ArticleStatus;
 
   @IsArray()
-  @IsString({ each: true })
   @IsOptional()
-  tags?: string[];
+  @ValidateNested({ each: true })
+  @Type(() => TagDto)
+  tags?: TagDto[];
 
   @IsArray()
   @IsOptional()

@@ -65,4 +65,9 @@ export class UpdateBlogDto {
   @ValidateNested({ each: true })
   @Type(() => MediaItemDto)
   mediaItems?: MediaItemDto[];
+
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  tags?: string[];
 }

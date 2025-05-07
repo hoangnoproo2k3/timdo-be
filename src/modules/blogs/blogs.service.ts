@@ -40,12 +40,11 @@ export class BlogsService {
           userId,
           tags: tags
             ? {
-                // Tự động tạo tag nếu chưa tồn tại
                 connectOrCreate: tags.map((tag) => ({
-                  where: { name: tag }, // Tìm theo name hoặc slug tùy bạn
+                  where: { name: tag.name },
                   create: {
-                    name: tag,
-                    slug: tag.toLowerCase().replace(/\s+/g, '-'),
+                    name: tag.name,
+                    slug: tag.name.toLowerCase().replace(/\s+/g, '-'),
                   },
                 })),
               }
@@ -60,6 +59,7 @@ export class BlogsService {
               avatarUrl: true,
             },
           },
+          tags: true,
         },
       });
 
@@ -130,6 +130,7 @@ export class BlogsService {
               avatarUrl: true,
             },
           },
+          tags: true,
           media: true,
         },
       }),
@@ -217,13 +218,25 @@ export class BlogsService {
         }
       }
 
-      const { mediaItems, ...blogData } = updateBlogDto;
+      const { mediaItems, tags, ...blogData } = updateBlogDto;
 
       const updatedBlog = await tx.article.update({
         where: { id },
         data: {
           ...blogData,
           slug,
+          tags: tags
+            ? {
+                set: [], // First disconnect all existing tags
+                connectOrCreate: tags.map((tagName) => ({
+                  where: { name: tagName },
+                  create: {
+                    name: tagName,
+                    slug: tagName.toLowerCase().replace(/\s+/g, '-'),
+                  },
+                })),
+              }
+            : undefined,
         },
         include: {
           user: {
@@ -235,6 +248,7 @@ export class BlogsService {
             },
           },
           media: true,
+          tags: true,
         },
       });
 
