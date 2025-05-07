@@ -176,116 +176,119 @@ export class ModerationService {
   }
 
   async moderatePost(postId: number, dto: ModeratePostDto) {
-    const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-      include: {
-        user: true,
-        postSubscriptions: {
-          include: {
-            package: true,
-            payment: true,
+    return await this.prisma.$transaction(async (tx) => {
+      const post = await tx.post.findUnique({
+        where: { id: postId },
+        include: {
+          user: true,
+          postSubscriptions: {
+            include: {
+              package: true,
+              payment: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
           },
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: 1,
         },
-      },
-    });
+      });
 
-    if (!post) {
-      throw new NotFoundException(`Không tìm thấy bài đăng với ID ${postId}`);
-    }
+      if (!post) {
+        throw new NotFoundException(`Không tìm thấy bài đăng với ID ${postId}`);
+      }
 
-    const updateData: Prisma.PostUpdateInput = {};
+      const updateData: Prisma.PostUpdateInput = {};
 
-    switch (dto.action) {
-      case ModerateAction.APPROVE:
-        updateData.status = 'APPROVED';
-        break;
+      switch (dto.action) {
+        case ModerateAction.APPROVE:
+          updateData.status = 'APPROVED';
+          break;
 
-      case ModerateAction.REJECT:
-        updateData.status = 'REJECTED';
-        if (dto.reason) {
-          updateData.rejectionReason = dto.reason;
-        }
-        break;
-
-      case ModerateAction.CONFIRM_PAYMENT:
-        updateData.status = 'APPROVED';
-
-        // Update payment status in Payment table
-        if (post.postSubscriptions && post.postSubscriptions.length > 0) {
-          const subscription = post.postSubscriptions[0];
-          const payment = subscription.payment;
-
-          if (
-            payment?.status === PaymentStatus.PENDING &&
-            subscription.status === SubscriptionStatus.PENDING
-          ) {
-            await this.prisma.payment.update({
-              where: { id: payment.id },
-              data: {
-                status: PaymentStatus.PAID,
-                paidAt: new Date(),
-              },
-            });
-            await this.prisma.postSubscription.update({
-              where: { id: subscription.id },
-              data: {
-                status: SubscriptionStatus.ACTIVE,
-              },
-            });
+        case ModerateAction.REJECT:
+          updateData.status = 'REJECTED';
+          if (dto.reason) {
+            updateData.rejectionReason = dto.reason;
           }
+          break;
+
+        case ModerateAction.CONFIRM_PAYMENT: {
+          updateData.status = 'APPROVED';
+
+          const pendingSubscription = post.postSubscriptions.find(
+            (sub) =>
+              sub.status === SubscriptionStatus.PENDING &&
+              sub.payment?.status === PaymentStatus.PENDING,
+          );
+
+          if (!pendingSubscription) {
+            throw new BadRequestException(
+              'Không tìm thấy gói cần xác nhận thanh toán',
+            );
+          }
+
+          await tx.payment.update({
+            where: { id: pendingSubscription.payment!.id },
+            data: {
+              status: PaymentStatus.PAID,
+              paidAt: new Date(),
+            },
+          });
+
+          await tx.postSubscription.update({
+            where: { id: pendingSubscription.id },
+            data: {
+              status: SubscriptionStatus.ACTIVE,
+            },
+          });
+
+          break;
         }
-        break;
 
-      default:
-        throw new BadRequestException('Hành động không hợp lệ');
-    }
+        default:
+          throw new BadRequestException('Hành động không hợp lệ');
+      }
 
-    const updatedPost = await this.prisma.post.update({
-      where: { id: postId },
-      data: updateData,
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
+      const updatedPost = await tx.post.update({
+        where: { id: postId },
+        data: updateData,
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+            },
+          },
+          postSubscriptions: {
+            include: {
+              package: true,
+              payment: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
           },
         },
-        postSubscriptions: {
-          include: {
-            package: true,
-            payment: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-          take: 1,
-        },
-      },
+      });
+
+      let message = '';
+      switch (dto.action) {
+        case ModerateAction.APPROVE:
+          message = 'Bài đăng đã được phê duyệt thành công';
+          break;
+        case ModerateAction.REJECT:
+          message = 'Bài đăng đã bị từ chối';
+          break;
+        case ModerateAction.CONFIRM_PAYMENT:
+          message = 'Đã xác nhận thanh toán cho bài đăng';
+          break;
+      }
+
+      return {
+        message,
+        post: updatedPost,
+      };
     });
-
-    // TODO: Gửi thông báo cho người dùng nếu dto.notifyUser === true
-
-    let message = '';
-    switch (dto.action) {
-      case ModerateAction.APPROVE:
-        message = 'Bài đăng đã được phê duyệt thành công';
-        break;
-      case ModerateAction.REJECT:
-        message = 'Bài đăng đã bị từ chối';
-        break;
-      case ModerateAction.CONFIRM_PAYMENT:
-        message = 'Đã xác nhận thanh toán cho bài đăng';
-        break;
-    }
-
-    return {
-      message,
-      post: updatedPost,
-    };
   }
 }

@@ -11,6 +11,7 @@ import {
   PostType,
   Prisma,
   Role,
+  SubscriptionStatus,
 } from '@prisma/client';
 import { JwtRequest } from '~/common/interfaces';
 import { generateUniqueSlug } from '~/common/utils';
@@ -27,20 +28,9 @@ interface MediaItem {
 export class PostsService {
   constructor(private prisma: PrismaService) {}
 
-  async createPost(userId: number, createPostDto: CreatePostDto) {
+  async createPost(user: JwtRequest['user'], createPostDto: CreatePostDto) {
+    const userId = user.userId;
     return await this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          role: true,
-        },
-      });
-
-      if (!user) {
-        throw new NotFoundException('User not found');
-      }
-
       const slug = await generateUniqueSlug(tx, createPostDto.title);
       if (!slug) {
         throw new InternalServerErrorException('Generated slug is invalid');
@@ -49,15 +39,23 @@ export class PostsService {
       const { mediaItems, packageId, paymentProofUrl, ...postData } =
         createPostDto;
 
-      let initialStatus: PostStatus = PostStatus.PENDING;
-
-      if (postData.postType === PostType.FOUND) {
-        initialStatus = PostStatus.APPROVED;
-      } else if (user.role === Role.ADMIN) {
-        initialStatus = PostStatus.APPROVED;
-      } else if (packageId && packageId > 1) {
-        initialStatus = PostStatus.APPROVED;
+      if (
+        postData.postType === 'LOST' &&
+        packageId !== undefined &&
+        packageId < 1
+      ) {
+        throw new BadRequestException('Gói dịch vụ không hợp lệ');
       }
+
+      const initialStatus: PostStatus =
+        // Approve if the post type is FOUND
+        postData.postType === PostType.FOUND ||
+        // Or if the user is an admin
+        user.role === Role.ADMIN ||
+        // Or if there's a valid packageId greater than 1
+        (packageId && packageId > 1)
+          ? PostStatus.APPROVED
+          : PostStatus.PENDING;
 
       const post = await tx.post.create({
         data: {
@@ -96,14 +94,7 @@ export class PostsService {
             `Không tìm thấy gói dịch vụ với ID ${packageId}`,
           );
         }
-
-        // FREE Package - no subscription and no payment required
-        if (
-          servicePackage.packageType === 'FREE' ||
-          servicePackage.price === 0
-        ) {
-          // No need to do anything
-        } else {
+        if (packageId > 1) {
           // Calculate service package end time
           const startDate = new Date();
           const endDate = new Date();
@@ -117,7 +108,10 @@ export class PostsService {
               action: 'NEW',
               startDate,
               endDate,
-              status: 'PENDING',
+              status:
+                user.role === Role.ADMIN
+                  ? SubscriptionStatus.ACTIVE
+                  : SubscriptionStatus.PENDING,
             },
           });
 
@@ -128,7 +122,10 @@ export class PostsService {
               postSubscriptionId: subscription.id,
               amount: servicePackage.price,
               paymentType: 'PACKAGE',
-              status: PaymentStatus.PENDING,
+              status:
+                user.role === Role.ADMIN
+                  ? PaymentStatus.PAID
+                  : PaymentStatus.PENDING,
               proofImageUrl: paymentProofUrl,
             },
           });
