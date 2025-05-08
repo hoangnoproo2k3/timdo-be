@@ -24,8 +24,9 @@ enum PostStatus {
 }
 
 enum ArticleStatus {
-  DRAFT
-  PUBLISHED
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 enum ReportStatus {
@@ -102,24 +103,29 @@ model Post {
 }
 
 model Article {
-  id        Int           @id @default(autoincrement())
-  title     String        @db.VarChar(255)
-  slug      String        @unique @db.VarChar(255)
-  content   String        @db.Text
-  excerpt   String?       @db.Text
-  status    ArticleStatus @default(DRAFT)
-  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId    Int
-  comments  Comment[]
-  likes     Like[]
-  tags      Tag[]         @relation("ArticleTags")
-  media     Media[]
-  reports   Report[]      @relation("ArticleReports")
-  createdAt DateTime      @default(now())
-  updatedAt DateTime      @updatedAt
+  id              Int           @id @default(autoincrement())
+  title           String        @db.VarChar(255)
+  slug            String        @unique @db.VarChar(255)
+  content         String        @db.Text
+  excerpt         String?       @db.Text
+  status          ArticleStatus @default(PENDING)
+  views           Int           @default(0)
+  publishedAt     DateTime?
+  readingTime     Int?          @default(0)
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId          Int
+  comments        Comment[]
+  likes           Like[]
+  tags            Tag[]         @relation("ArticleTags")
+  media           Media[]
+  reports         Report[]      @relation("ArticleReports")
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  deletedAt       DateTime?
 
   @@index([userId])
   @@index([status])
+  @@index([publishedAt])
 }
 
 model Comment {
