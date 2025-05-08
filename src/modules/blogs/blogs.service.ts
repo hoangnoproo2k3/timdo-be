@@ -103,7 +103,6 @@ export class BlogsService {
 
     const where: Prisma.ArticleWhereInput = {
       deletedAt: null,
-      status: ArticleStatus.APPROVED,
     };
 
     const search = dto.search?.trim();
@@ -306,7 +305,7 @@ export class BlogsService {
     }
 
     const isOwner = blog.userId === user.userId;
-    const isAdmin = user.role === 'admin';
+    const isAdmin = user.role === 'ADMIN';
 
     if (!isOwner && !isAdmin) {
       throw new ForbiddenException(
@@ -332,7 +331,7 @@ export class BlogsService {
     }
 
     const isOwner = blog.userId === user.userId;
-    const isAdmin = user.role === 'admin';
+    const isAdmin = user.role === 'ADMIN';
 
     if (!isOwner && !isAdmin) {
       throw new ForbiddenException(
@@ -358,13 +357,8 @@ export class BlogsService {
       throw new ForbiddenException('Blog is already approved');
     }
 
-    const isOwner = blog.userId === user.userId;
-    const isAdmin = user.role === 'admin';
-
-    if (!isOwner && !isAdmin) {
-      throw new ForbiddenException(
-        'You do not have permission to approve this blog',
-      );
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only admin can approve blogs');
     }
 
     const updatedBlog = await this.prisma.article.update({
@@ -405,13 +399,8 @@ export class BlogsService {
       throw new ForbiddenException('Blog is already rejected');
     }
 
-    const isOwner = blog.userId === user.userId;
-    const isAdmin = user.role === 'admin';
-
-    if (!isOwner && !isAdmin) {
-      throw new ForbiddenException(
-        'You do not have permission to reject this blog',
-      );
+    if (user.role !== 'ADMIN') {
+      throw new ForbiddenException('Only admin can reject blogs');
     }
 
     const updatedBlog = await this.prisma.article.update({

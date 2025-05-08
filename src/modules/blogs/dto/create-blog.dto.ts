@@ -40,6 +40,7 @@ export class TagDto {
 export class CreateBlogDto {
   @IsString()
   @IsNotEmpty()
+  @MinLength(5)
   title: string;
 
   @IsString()
