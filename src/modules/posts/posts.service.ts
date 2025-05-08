@@ -287,6 +287,28 @@ export class PostsService {
       where.postType = dto.postType;
     }
 
+    // Filter by package type if provided
+    if (dto.packageType) {
+      where.postSubscriptions = {
+        some: {
+          package: {
+            packageType: dto.packageType,
+          },
+        },
+      };
+    }
+
+    // Filter by payment status if provided
+    if (dto.paymentStatus) {
+      where.postSubscriptions = {
+        some: {
+          payment: {
+            status: dto.paymentStatus,
+          },
+        },
+      };
+    }
+
     const search = dto.search?.trim();
     if (search) {
       where.OR = [
@@ -300,7 +322,7 @@ export class PostsService {
         where,
         skip,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ isBoosted: 'desc' }, { createdAt: 'desc' }],
         include: {
           user: {
             select: {
@@ -328,6 +350,9 @@ export class PostsService {
                 gte: new Date(),
               },
             },
+            include: {
+              payment: true,
+            },
             take: 1,
           },
         },
@@ -337,12 +362,9 @@ export class PostsService {
 
     // Process posts to add convenience properties for the frontend
     const processedPosts = posts.map((post) => {
-      console.log(post.postSubscriptions, post.id);
-
       const latestSubscription = post.postSubscriptions?.[0];
       const payment = latestSubscription?.payment;
-
-      console.log(latestSubscription);
+      const activeBoost = post.boostTransactions?.[0];
 
       return {
         ...post,
@@ -350,12 +372,19 @@ export class PostsService {
         isPaid: !!latestSubscription && latestSubscription.packageId > 1,
         // Add paymentStatus property based on payment data
         paymentStatus: payment?.status,
+        // Add package info
+        currentPackage: latestSubscription?.package,
+        // Add subscription status
+        subscriptionStatus: latestSubscription?.status,
+        // Add boost info
+        isBoosted: !!activeBoost,
+        boostEndDate: activeBoost?.endDate,
+        boostPaymentStatus: activeBoost?.payment?.status,
         // Include whether post requires payment confirmation
         needsPaymentConfirmation:
-          // post.status === PostStatus.PENDING &&
           !!latestSubscription &&
           latestSubscription.packageId > 1 &&
-          payment?.status === PostStatus.PENDING,
+          payment?.status === PaymentStatus.PENDING,
       };
     });
 
