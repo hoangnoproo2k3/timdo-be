@@ -48,11 +48,8 @@ export class PostsService {
       }
 
       const initialStatus: PostStatus =
-        // Approve if the post type is FOUND
         postData.postType === PostType.FOUND ||
-        // Or if the user is an admin
         user.role === Role.ADMIN ||
-        // Or if there's a valid packageId greater than 1
         (packageId && packageId > 1)
           ? PostStatus.APPROVED
           : PostStatus.PENDING;

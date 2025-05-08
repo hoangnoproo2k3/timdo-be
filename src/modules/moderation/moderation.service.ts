@@ -204,12 +204,37 @@ export class ModerationService {
           updateData.status = 'APPROVED';
           break;
 
-        case ModerateAction.REJECT:
+        case ModerateAction.REJECT: {
           updateData.status = 'REJECTED';
           if (dto.reason) {
             updateData.rejectionReason = dto.reason;
           }
+
+          const pendingSubscription = post.postSubscriptions.find(
+            (sub) =>
+              sub.status === SubscriptionStatus.PENDING &&
+              sub.payment?.status === PaymentStatus.PENDING,
+          );
+
+          if (pendingSubscription) {
+            await tx.postSubscription.update({
+              where: { id: pendingSubscription.id },
+              data: {
+                status: SubscriptionStatus.CANCELLED,
+              },
+            });
+
+            await tx.payment.update({
+              where: { id: pendingSubscription.payment!.id },
+              data: {
+                status: PaymentStatus.UNPAID,
+                cancelledAt: new Date(),
+              },
+            });
+          }
+
           break;
+        }
 
         case ModerateAction.CONFIRM_PAYMENT: {
           updateData.status = 'APPROVED';
