@@ -40,7 +40,14 @@ export class PostsService {
         createPostDto;
 
       if (
-        postData.postType === 'LOST' &&
+        postData.postType === PostType.LOST &&
+        (packageId === undefined || packageId === null)
+      ) {
+        throw new BadRequestException('Vui lòng chọn gói dịch vụ');
+      }
+
+      if (
+        postData.postType === PostType.LOST &&
         packageId !== undefined &&
         packageId < 1
       ) {
@@ -176,6 +183,7 @@ export class PostsService {
       select: {
         userId: true,
         media: true,
+        postType: true,
       },
     });
 
@@ -190,6 +198,14 @@ export class PostsService {
       throw new ForbiddenException(
         'You do not have permission to update this post',
       );
+    }
+
+    if (
+      updatePost.packageId !== undefined &&
+      post.postType === PostType.LOST &&
+      updatePost.packageId < 1
+    ) {
+      throw new BadRequestException('Gói dịch vụ không hợp lệ');
     }
 
     return await this.prisma.$transaction(async (tx) => {
