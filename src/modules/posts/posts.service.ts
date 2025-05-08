@@ -778,58 +778,6 @@ export class PostsService {
   }
 
   /**
-   * Kiểm tra và update trạng thái boost hết hạn
-   */
-  async checkAndUpdateExpiredBoosts() {
-    const now = new Date();
-
-    // Tìm các bài viết có trạng thái boost đã hết hạn
-    const expiredBoosts = await this.prisma.post.findMany({
-      where: {
-        isBoosted: true,
-        boostUntil: {
-          lt: now,
-        },
-      },
-      select: {
-        id: true,
-      },
-    });
-
-    // Cập nhật trạng thái boost
-    if (expiredBoosts.length > 0) {
-      await this.prisma.post.updateMany({
-        where: {
-          id: {
-            in: expiredBoosts.map((post) => post.id),
-          },
-        },
-        data: {
-          isBoosted: false,
-        },
-      });
-
-      // Cập nhật trạng thái của các boost transaction liên quan
-      await this.prisma.boostTransaction.updateMany({
-        where: {
-          postId: {
-            in: expiredBoosts.map((post) => post.id),
-          },
-          endDate: {
-            lt: now,
-          },
-          isActive: true,
-        },
-        data: {
-          isActive: false,
-        },
-      });
-
-      console.log(`Updated ${expiredBoosts.length} expired boost posts`);
-    }
-  }
-
-  /**
    * Lấy thống kê về các gói dịch vụ của người dùng
    */
   async getUserPackageStats(userId: number) {

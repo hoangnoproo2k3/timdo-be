@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '~/prisma';
-import { PostsModule } from '../posts/posts.module';
-import { PostsService } from '../posts/posts.service';
 import { ExpiredChecksService } from './expired-checks.service';
+import { TasksController } from './tasks.controller';
 
 @Module({
-  imports: [PrismaModule, PostsModule],
-  providers: [ExpiredChecksService, PostsService],
+  imports: [PrismaModule],
+  controllers: [TasksController],
+  providers: [ExpiredChecksService],
+  exports: [ExpiredChecksService],
 })
 export class TasksModule {}

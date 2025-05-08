@@ -1,64 +1,56 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import { SubscriptionStatus } from '@prisma/client';
 import { PrismaService } from '~/prisma';
-import { PostsService } from '../posts/posts.service';
 
 @Injectable()
 export class ExpiredChecksService {
   private readonly logger = new Logger(ExpiredChecksService.name);
 
-  constructor(
-    private prisma: PrismaService,
-    private postsService: PostsService,
-  ) {}
+  constructor(private prisma: PrismaService) {}
 
   /**
    * Kiểm tra và cập nhật các gói dịch vụ hết hạn mỗi ngày lúc 00:01
    */
   @Cron('1 0 * * *')
   async checkExpiredSubscriptions() {
-    this.logger.log('Running expired subscriptions check');
-
     const now = new Date();
+    this.logger.log(
+      '🕒 Running expired subscriptions check at: ' + now.toISOString(),
+    );
 
-    // Tìm các gói đăng ký đã hết hạn nhưng vẫn trong trạng thái Active
-    const expiredSubscriptions = await this.prisma.postSubscription.findMany({
-      where: {
-        status: 'ACTIVE',
-        endDate: {
-          lt: now,
-        },
-      },
-      select: {
-        id: true,
-        postId: true,
-      },
-    });
-
-    if (expiredSubscriptions.length > 0) {
-      this.logger.log(
-        `Found ${expiredSubscriptions.length} expired subscriptions`,
-      );
-
-      // Cập nhật trạng thái subscriptions
-      await this.prisma.postSubscription.updateMany({
+    try {
+      const expiredSubscriptions = await this.prisma.postSubscription.findMany({
         where: {
-          id: {
-            in: expiredSubscriptions.map((sub) => sub.id),
-          },
+          status: SubscriptionStatus.ACTIVE,
+          endDate: { lt: now },
         },
-        data: {
-          status: 'EXPIRED',
+        select: {
+          id: true,
+          postId: true,
+          endDate: true,
         },
       });
 
-      // Gửi thông báo cho người dùng (có thể thêm code ở đây)
+      const expiredCount = expiredSubscriptions.length;
+      this.logger.log(`✅ Found ${expiredCount} expired subscriptions`);
 
-      this.logger.log(
-        `Updated ${expiredSubscriptions.length} expired subscriptions`,
-      );
-    } else {
-      this.logger.log('No expired subscriptions found');
+      if (expiredCount > 0) {
+        const idsToUpdate = expiredSubscriptions.map((sub) => sub.id);
+
+        const result = await this.prisma.postSubscription.updateMany({
+          where: { id: { in: idsToUpdate } },
+          data: { status: SubscriptionStatus.EXPIRED },
+        });
+
+        this.logger.log(
+          `🔄 Updated ${result.count} subscriptions to EXPIRED status`,
+        );
+      } else {
+        this.logger.log('📭 No expired subscriptions found');
+      }
+    } catch (error) {
+      this.logger.error('❌ Error while checking expired subscriptions', error);
     }
   }
 
@@ -67,7 +59,49 @@ export class ExpiredChecksService {
    */
   @Cron('0 * * * *')
   async checkExpiredBoosts() {
-    this.logger.log('Running expired boosts check');
-    await this.postsService.checkAndUpdateExpiredBoosts();
+    const now = new Date();
+    this.logger.log('🕒 Running expired boosts check at: ' + now.toISOString());
+
+    try {
+      const expiredBoosts = await this.prisma.post.findMany({
+        where: {
+          isBoosted: true,
+          boostUntil: { lt: now },
+        },
+        select: { id: true },
+      });
+
+      const expiredPostIds = expiredBoosts.map((post) => post.id);
+
+      if (expiredPostIds.length > 0) {
+        const postUpdateResult = await this.prisma.post.updateMany({
+          where: { id: { in: expiredPostIds } },
+          data: { isBoosted: false },
+        });
+
+        const transactionUpdateResult =
+          await this.prisma.boostTransaction.updateMany({
+            where: {
+              postId: { in: expiredPostIds },
+              endDate: { lt: now },
+              isActive: true,
+            },
+            data: { isActive: false },
+          });
+
+        this.logger.log(
+          `✅ Updated ${postUpdateResult.count} expired boosted posts`,
+        );
+        this.logger.log(
+          `🔄 Updated ${transactionUpdateResult.count} boost transactions to inactive`,
+        );
+      } else {
+        this.logger.log('📭 No expired boosted posts found');
+      }
+
+      this.logger.log('✅ Boosts check completed');
+    } catch (error) {
+      this.logger.error('❌ Error while checking expired boosts', error);
+    }
   }
 }
