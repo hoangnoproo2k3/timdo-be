@@ -4,6 +4,7 @@ import { PrismaModule } from '~/prisma/prisma.module';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
+import { BlogsModule } from './modules/blogs/blogs.module';
 import { TokenCleanupModule } from './modules/cleanup/token-cleanup.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { PostsModule } from './modules/posts/posts.module';
@@ -22,6 +23,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
     ServicesModule,
     TasksModule,
     ModerationModule,
+    BlogsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

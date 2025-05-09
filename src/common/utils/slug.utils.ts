@@ -53,20 +53,28 @@ export async function generateUniqueSlug(
 
   try {
     let slug: string;
-    let existingPost;
+    let isSlugExists: boolean;
 
     do {
       const suffix = counter === 0 ? '' : `-${counter}`;
       const maxBaseLength = MAX_SLUG_LENGTH - suffix.length;
       slug = baseSlug.slice(0, maxBaseLength) + suffix;
 
-      existingPost = await prisma.post.findFirst({
-        select: { slug: true },
-        where: { slug },
-      });
+      // Check in both article and post tables
+      const [existingArticle, existingPost] = await Promise.all([
+        prisma.article.findFirst({
+          select: { slug: true },
+          where: { slug },
+        }),
+        prisma.post.findFirst({
+          select: { slug: true },
+          where: { slug },
+        }),
+      ]);
 
+      isSlugExists = !!(existingArticle || existingPost);
       counter++;
-    } while (existingPost);
+    } while (isSlugExists);
 
     return slug;
   } catch (error) {
