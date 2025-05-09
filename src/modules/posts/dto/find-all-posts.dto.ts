@@ -1,4 +1,9 @@
-import { PostStatus, PostType } from '@prisma/client';
+import {
+  PackageType,
+  PaymentStatus,
+  PostStatus,
+  PostType,
+} from '@prisma/client';
 import {
   IsBoolean,
   IsEnum,
@@ -31,6 +36,14 @@ export class FindAllPostsDto {
   @IsOptional()
   @IsEnum(PostType)
   postType?: PostType;
+
+  @IsOptional()
+  @IsEnum(PackageType)
+  packageType?: PackageType;
+
+  @IsOptional()
+  @IsEnum(PaymentStatus)
+  paymentStatus?: PaymentStatus;
 
   @IsOptional()
   @IsString()

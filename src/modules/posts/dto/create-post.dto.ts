@@ -2,10 +2,10 @@ import { PostType } from '@prisma/client';
 import { Type } from 'class-transformer';
 import {
   IsArray,
-  IsBoolean,
   IsDateString,
   IsEnum,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   MinLength,
@@ -61,13 +61,13 @@ export class CreatePostDto {
   @IsOptional()
   slug?: string;
 
-  @IsBoolean()
+  @IsNumber()
   @IsOptional()
-  isPromoted?: boolean;
+  packageId?: number;
 
-  @IsDateString()
+  @IsString()
   @IsOptional()
-  promoteUntil?: string;
+  paymentProofUrl?: string;
 
   @IsArray()
   @IsOptional()

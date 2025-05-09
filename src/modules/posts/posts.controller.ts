@@ -12,11 +12,9 @@ import {
   Req,
   UseGuards,
 } from '@nestjs/common';
-import { JwtRequest } from '~/common/interfaces/request.interface';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CreatePostDto } from './dto/create-post.dto';
-import { FindAllPostsDto } from './dto/find-all-posts.dto';
-import { UpdatePostDto } from './dto/update-post.dto';
+import { JwtRequest } from '~/common/interfaces';
+import { JwtAuthGuard } from '~/modules/auth/guards';
+import { CreatePostDto, FindAllPostsDto, UpdatePostDto } from './dto';
 import { PostsService } from './posts.service';
 
 @Controller('/v1/posts')
@@ -30,8 +28,7 @@ export class PostsController {
     @Req() req: JwtRequest,
     @Body() createPostDto: CreatePostDto,
   ) {
-    const userId = req.user.userId;
-    return this.postsService.createPost(+userId, createPostDto);
+    return this.postsService.createPost(req.user, createPostDto);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -72,5 +69,44 @@ export class PostsController {
     @Req() req: JwtRequest,
   ) {
     return this.postsService.hardDeletePost(id, req.user);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/upgrade')
+  upgradePackage(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('packageId', ParseIntPipe) packageId: number,
+    @Req() req: JwtRequest,
+  ) {
+    return this.postsService.upgradePackage(id, packageId, req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/renew')
+  renewPackage(@Param('id', ParseIntPipe) id: number, @Req() req: JwtRequest) {
+    return this.postsService.renewPackage(id, req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/boost')
+  boostPost(
+    @Param('id', ParseIntPipe) id: number,
+    @Body('duration', ParseIntPipe) duration: number,
+    @Body('price') price: number,
+    @Req() req: JwtRequest,
+  ) {
+    return this.postsService.boostPost(id, duration, req.user.userId, price);
+  }
+
+  @Get('stats/packages')
+  @UseGuards(JwtAuthGuard)
+  async getPackageStats(@Req() req: JwtRequest) {
+    return this.postsService.getUserPackageStats(req.user.userId);
+  }
+
+  @Get('stats/boosts')
+  @UseGuards(JwtAuthGuard)
+  async getBoostStats(@Req() req: JwtRequest) {
+    return this.postsService.getUserBoostStats(req.user.userId);
   }
 }

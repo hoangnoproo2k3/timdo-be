@@ -4,6 +4,6 @@ export class PresignedUrlDto {
   @IsString()
   fileType: string;
 
-  @IsIn(['timdo', 'nhatduoc'])
-  folder: 'timdo' | 'nhatduoc';
+  @IsIn(['timdo', 'nhatduoc', 'payment-proofs'])
+  folder: 'timdo' | 'nhatduoc' | 'payment-proofs';
 }

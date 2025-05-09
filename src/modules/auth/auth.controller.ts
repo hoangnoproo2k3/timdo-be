@@ -12,12 +12,11 @@ import {
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { envConfig } from '~/common/config/env.config';
-import { JwtRequest } from '~/common/interfaces/request.interface';
+import { JwtRequest } from '~/common/interfaces';
 import { AuthService } from './auth.service';
 import { SignInDto } from './dto/signin.dto';
 import { SignUpDto } from './dto/signup.dto';
-import { GoogleAuthGuard } from './guards/google-auth.guard';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { GoogleAuthGuard, JwtAuthGuard } from './guards';
 
 interface GoogleUser {
   googleId: string;
