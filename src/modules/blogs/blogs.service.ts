@@ -226,12 +226,11 @@ export class BlogsService {
           slug,
           tags: tags
             ? {
-                set: [], // First disconnect all existing tags
-                connectOrCreate: tags.map((tagName) => ({
-                  where: { name: tagName },
+                connectOrCreate: tags.map((tag) => ({
+                  where: { name: tag.name },
                   create: {
-                    name: tagName,
-                    slug: tagName.toLowerCase().replace(/\s+/g, '-'),
+                    name: tag.name,
+                    slug: tag.name.toLowerCase().replace(/\s+/g, '-'),
                   },
                 })),
               }

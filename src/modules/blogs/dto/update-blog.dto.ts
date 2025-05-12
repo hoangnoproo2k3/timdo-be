@@ -5,13 +5,13 @@ import {
   ValidateNested,
   IsBoolean,
   IsInt,
-  IsDate,
+  IsISO8601,
   IsEnum,
   MaxLength,
   MinLength,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { MediaItemDto } from './create-blog.dto';
+import { MediaItemDto, TagDto } from './create-blog.dto';
 import { ArticleStatus } from '@prisma/client';
 
 export class UpdateBlogDto {
@@ -56,9 +56,9 @@ export class UpdateBlogDto {
   @IsOptional()
   status?: ArticleStatus;
 
-  @IsDate()
+  @IsISO8601({ strict: true })
   @IsOptional()
-  publishedAt?: Date;
+  publishedAt?: string;
 
   @IsArray()
   @IsOptional()
@@ -67,7 +67,8 @@ export class UpdateBlogDto {
   mediaItems?: MediaItemDto[];
 
   @IsArray()
-  @IsString({ each: true })
   @IsOptional()
-  tags?: string[];
+  @ValidateNested({ each: true })
+  @Type(() => TagDto)
+  tags?: TagDto[];
 }
