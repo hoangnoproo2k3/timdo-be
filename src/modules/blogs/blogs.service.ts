@@ -12,6 +12,7 @@ import { Prisma } from '@prisma/client';
 import { UpdateBlogDto } from './dto/update-blog.dto';
 import { JwtRequest } from '~/common/interfaces/request.interface';
 import { ArticleStatus } from '@prisma/client';
+import { CreateCommentDto } from './dto/create-comment.dto';
 
 @Injectable()
 export class BlogsService {
@@ -131,6 +132,16 @@ export class BlogsService {
           },
           tags: true,
           media: true,
+          likes: true,
+          comments: true,
+          reports: true,
+          _count: {
+            select: {
+              comments: true,
+              likes: true,
+              reports: true,
+            },
+          },
         },
       }),
       this.prisma.article.count({ where }),
@@ -162,7 +173,28 @@ export class BlogsService {
         tags: true,
         media: true,
         likes: true,
-        comments: true,
+        comments: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                avatarUrl: true,
+              },
+            },
+            replies: {
+              include: {
+                user: {
+                  select: {
+                    id: true,
+                    username: true,
+                    avatarUrl: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         reports: true,
         _count: {
           select: {
@@ -424,5 +456,139 @@ export class BlogsService {
       message: 'Blog rejected successfully',
       article: updatedBlog,
     };
+  }
+
+  async toggleLike(id: number, userId: number) {
+    const blog = await this.prisma.article.findUnique({
+      where: { id },
+      include: {
+        likes: {
+          where: {
+            userId,
+          },
+        },
+      },
+    });
+
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    if (blog.likes.length > 0) {
+      // Unlike
+      await this.prisma.like.delete({
+        where: {
+          id: blog.likes[0].id,
+        },
+      });
+      return { message: 'Blog unliked successfully' };
+    } else {
+      // Like
+      await this.prisma.like.create({
+        data: {
+          user: {
+            connect: { id: userId },
+          },
+          article: {
+            connect: { id },
+          },
+        },
+      });
+      return { message: 'Blog liked successfully' };
+    }
+  }
+
+  async createComment(
+    id: number,
+    userId: number,
+    createCommentDto: CreateCommentDto,
+  ) {
+    const { content, parentId } = createCommentDto;
+
+    const blog = await this.prisma.article.findUnique({
+      where: { id },
+    });
+
+    if (!blog) {
+      throw new NotFoundException('Blog not found');
+    }
+
+    if (parentId) {
+      const parentComment = await this.prisma.comment.findUnique({
+        where: { id: parentId },
+      });
+
+      if (!parentComment) {
+        throw new NotFoundException('Parent comment not found');
+      }
+    }
+
+    const comment = await this.prisma.comment.create({
+      data: {
+        content,
+        user: {
+          connect: { id: userId },
+        },
+        article: {
+          connect: { id },
+        },
+        ...(parentId && {
+          parent: {
+            connect: { id: parentId },
+          },
+        }),
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            avatarUrl: true,
+          },
+        },
+        replies: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return comment;
+  }
+
+  async deleteComment(commentId: number, userId: number) {
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+    });
+
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    if (comment.userId !== userId) {
+      throw new ForbiddenException('You can only delete your own comments');
+    }
+
+    await this.prisma.comment.delete({
+      where: { id: commentId },
+    });
+
+    return { message: 'Comment deleted successfully' };
+  }
+
+  async incrementView(id: number) {
+    const blog = await this.prisma.article.update({
+      where: { id },
+      data: { views: { increment: 1 } },
+      select: { id: true, views: true },
+    });
+    return { views: blog.views };
   }
 }
