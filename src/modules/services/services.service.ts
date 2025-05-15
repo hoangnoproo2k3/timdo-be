@@ -7,9 +7,9 @@ export class ServicesService {
 
   async getServices() {
     const services = await this.prisma.servicePackage.findMany({
-      orderBy: {
-        createdAt: 'desc',
-      },
+      // orderBy: {
+      //   createdAt: 'desc',
+      // },
     });
 
     return services;
