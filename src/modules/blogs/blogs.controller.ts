@@ -18,6 +18,7 @@ import { CreateBlogDto } from './dto/create-blog.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { FindAllBlogDto } from './dto/find-all-blogs';
 import { UpdateBlogDto } from './dto/update-blog.dto';
+import { CreateCommentDto } from './dto/create-comment.dto';
 
 @Controller('/v1/blogs')
 export class BlogsController {
@@ -93,5 +94,42 @@ export class BlogsController {
     @Req() req: JwtRequest,
   ) {
     return this.blogsService.rejectBlog(id, req.user);
+  }
+
+  @Post(':id/like')
+  @UseGuards(JwtAuthGuard)
+  async toggleLike(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: JwtRequest,
+  ) {
+    return this.blogsService.toggleLike(id, req.user.userId);
+  }
+
+  @Post(':id/comments')
+  @UseGuards(JwtAuthGuard)
+  async createComment(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: JwtRequest,
+    @Body() createCommentDto: CreateCommentDto,
+  ) {
+    return this.blogsService.createComment(
+      id,
+      req.user.userId,
+      createCommentDto,
+    );
+  }
+
+  @Delete('comments/:id')
+  @UseGuards(JwtAuthGuard)
+  async deleteComment(
+    @Param('id', ParseIntPipe) id: number,
+    @Req() req: JwtRequest,
+  ) {
+    return this.blogsService.deleteComment(id, req.user.userId);
+  }
+
+  @Post(':id/view')
+  async incrementView(@Param('id', ParseIntPipe) id: number) {
+    return this.blogsService.incrementView(id);
   }
 }
