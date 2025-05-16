@@ -591,4 +591,55 @@ export class BlogsService {
     });
     return { views: blog.views };
   }
+
+  async getBlogsByUser(userId: number, page = 1, limit = 10) {
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ArticleWhereInput = {
+      userId,
+      deletedAt: null,
+    };
+
+    const [blogs, total] = await this.prisma.$transaction([
+      this.prisma.article.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              avatarUrl: true,
+            },
+          },
+          tags: true,
+          media: true,
+          likes: true,
+          comments: true,
+          reports: true,
+          _count: {
+            select: {
+              comments: true,
+              likes: true,
+              reports: true,
+            },
+          },
+        },
+      }),
+      this.prisma.article.count({ where }),
+    ]);
+
+    return {
+      data: blogs,
+      meta: {
+        totalItems: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        pageSize: limit,
+      },
+    };
+  }
 }

@@ -135,6 +135,7 @@ model Article {
   id              Int           @id @default(autoincrement())
   title           String        @db.VarChar(255)
   slug            String        @unique @db.VarChar(255)
+  category          String?            @db.VarChar(100)
   content         String        @db.Text
   excerpt         String?       @db.Text
   status          ArticleStatus @default(PENDING)
