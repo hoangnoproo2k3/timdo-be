@@ -112,6 +112,8 @@ export class BlogsService {
       where.OR = [
         { title: { contains: search } },
         { content: { contains: search } },
+        { tags: { some: { name: { contains: search } } } },
+        { category: { contains: search } },
       ];
     }
 
