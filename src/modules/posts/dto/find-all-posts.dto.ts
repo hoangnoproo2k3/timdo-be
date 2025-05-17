@@ -10,6 +10,7 @@ import {
   IsNumberString,
   IsOptional,
   IsString,
+  IsNumber,
 } from 'class-validator';
 
 export class FindAllPostsDto {
@@ -56,4 +57,8 @@ export class FindAllPostsDto {
   @IsOptional()
   @IsBoolean()
   isPromoted?: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  userId?: number;
 }
