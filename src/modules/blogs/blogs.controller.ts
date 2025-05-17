@@ -132,4 +132,13 @@ export class BlogsController {
   async incrementView(@Param('id', ParseIntPipe) id: number) {
     return this.blogsService.incrementView(id);
   }
+
+  @Get('user/:userId')
+  async getBlogsByUser(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+  ) {
+    return this.blogsService.getBlogsByUser(userId, page, limit);
+  }
 }
