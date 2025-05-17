@@ -192,7 +192,7 @@ export class PostsService {
     }
 
     const isOwner = post.userId === user?.userId;
-    const isAdmin = user?.role === 'admin';
+    const isAdmin = user?.role === Role.ADMIN;
 
     if (!isOwner && !isAdmin) {
       throw new ForbiddenException(
@@ -301,6 +301,11 @@ export class PostsService {
     // Filter by post type if provided
     if (dto.postType) {
       where.postType = dto.postType;
+    }
+
+    // Filter by user ID if provided
+    if (dto.userId) {
+      where.userId = dto.userId;
     }
 
     // Filter by package type if provided
@@ -489,7 +494,7 @@ export class PostsService {
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
 
     if (!post) throw new NotFoundException('Post not found');
-    if (post.userId !== user.userId && user.role !== 'admin') {
+    if (post.userId !== user.userId && user.role !== Role.ADMIN) {
       throw new ForbiddenException(
         'You do not have permission to delete this post',
       );
@@ -507,7 +512,7 @@ export class PostsService {
     const post = await this.prisma.post.findUnique({ where: { id: postId } });
 
     if (!post) throw new NotFoundException('Post not found');
-    if (post.userId !== user.userId && user.role !== 'admin') {
+    if (post.userId !== user.userId && user.role !== Role.ADMIN) {
       throw new ForbiddenException(
         'You do not have permission to delete this post',
       );

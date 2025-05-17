@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
   HttpCode,
   HttpStatus,
@@ -44,6 +45,30 @@ export class PostsController {
   @Get()
   async getPosts(@Query() findAllPostsDto: FindAllPostsDto) {
     return this.postsService.getPosts(findAllPostsDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('admin')
+  async getAdminPosts(
+    @Req() req: JwtRequest,
+    @Query() findAllPostsDto: FindAllPostsDto,
+  ) {
+    if (req.user.role !== 'ADMIN') {
+      throw new ForbiddenException('Not authorized to access admin posts');
+    }
+    return this.postsService.getPosts(findAllPostsDto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async getMyPosts(
+    @Req() req: JwtRequest,
+    @Query() findAllPostsDto: FindAllPostsDto,
+  ) {
+    return this.postsService.getPosts({
+      ...findAllPostsDto,
+      userId: req.user.userId,
+    });
   }
 
   @Get(':id')
