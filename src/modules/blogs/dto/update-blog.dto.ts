@@ -1,18 +1,18 @@
+import { ArticleStatus } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
-  IsString,
-  IsOptional,
   IsArray,
-  ValidateNested,
   IsBoolean,
+  IsEnum,
   IsInt,
   IsISO8601,
-  IsEnum,
+  IsOptional,
+  IsString,
   MaxLength,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
-import { Type } from 'class-transformer';
 import { MediaItemDto, TagDto } from './create-blog.dto';
-import { ArticleStatus } from '@prisma/client';
 
 export class UpdateBlogDto {
   @IsString()
@@ -28,6 +28,10 @@ export class UpdateBlogDto {
   @IsOptional()
   @MaxLength(500)
   excerpt?: string;
+
+  @IsString()
+  @IsOptional()
+  category?: string;
 
   @IsString()
   @IsOptional()
