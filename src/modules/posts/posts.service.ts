@@ -17,6 +17,7 @@ import { JwtRequest } from '~/common/interfaces';
 import { generateUniqueSlug } from '~/common/utils';
 import { PrismaService } from '~/prisma';
 import { CreatePostDto, FindAllPostsDto, UpdatePostDto } from './dto';
+import { UpgradePostDto } from './dto/upgrade-post.dto';
 
 interface MediaItem {
   url: string;
@@ -519,6 +520,125 @@ export class PostsService {
     }
 
     return this.prisma.post.delete({ where: { id: postId } });
+  }
+
+  async upgradePost(
+    user: JwtRequest['user'],
+    postId: number,
+    dto: UpgradePostDto,
+  ) {
+    const { packageId, paymentProofUrl } = dto;
+
+    return await this.prisma.$transaction(async (tx) => {
+      const post = await tx.post.findUnique({
+        where: { id: postId },
+        include: {
+          postSubscriptions: {
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+      });
+
+      if (!post) throw new NotFoundException('Bài viết không tồn tại');
+      if (post.postType !== PostType.LOST)
+        throw new BadRequestException('Chỉ có thể nâng cấp bài đăng bị mất');
+      if (post.userId !== user.userId && user.role !== Role.ADMIN)
+        throw new ForbiddenException(
+          'Bạn không có quyền nâng cấp bài viết này',
+        );
+
+      const currentSub = post.postSubscriptions[0];
+
+      if (currentSub && currentSub.packageId >= packageId) {
+        throw new BadRequestException(
+          'Gói hiện tại đã bằng hoặc cao hơn gói bạn muốn nâng cấp',
+        );
+      }
+
+      const servicePackage = await tx.servicePackage.findUnique({
+        where: { id: packageId },
+      });
+
+      if (!servicePackage) {
+        throw new NotFoundException(
+          `Không tìm thấy gói dịch vụ với ID ${packageId}`,
+        );
+      }
+
+      const startDate = new Date();
+      const endDate = new Date();
+      endDate.setDate(endDate.getDate() + servicePackage.duration);
+
+      const subscription = await tx.postSubscription.create({
+        data: {
+          userId: user.userId,
+          postId: post.id,
+          packageId,
+          action: 'UPGRADE',
+          startDate,
+          endDate,
+          status:
+            user.role === Role.ADMIN
+              ? SubscriptionStatus.ACTIVE
+              : SubscriptionStatus.PENDING,
+        },
+      });
+
+      await tx.payment.create({
+        data: {
+          userId: user.userId,
+          packageId,
+          postSubscriptionId: subscription.id,
+          amount: servicePackage.price,
+          paymentType: 'UPGRADE',
+          status:
+            user.role === Role.ADMIN
+              ? PaymentStatus.PAID
+              : PaymentStatus.PENDING,
+          proofImageUrl: paymentProofUrl,
+        },
+      });
+
+      // Cập nhật trạng thái bài viết nếu admin hoặc gói > 1
+      if (user.role === Role.ADMIN || packageId > 1) {
+        await tx.post.update({
+          where: { id: post.id },
+          data: {
+            status: PostStatus.APPROVED,
+          },
+        });
+      }
+
+      const updatedPost = await tx.post.findUnique({
+        where: { id: post.id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              email: true,
+              avatarUrl: true,
+              role: true,
+            },
+          },
+          media: true,
+          postSubscriptions: {
+            include: {
+              package: true,
+              payment: true,
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 1,
+          },
+        },
+      });
+
+      return {
+        message: 'Nâng cấp bài viết thành công',
+        post: updatedPost,
+      };
+    });
   }
 
   /**

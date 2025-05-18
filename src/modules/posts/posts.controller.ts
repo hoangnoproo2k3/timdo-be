@@ -16,6 +16,7 @@ import {
 import { JwtRequest } from '~/common/interfaces';
 import { JwtAuthGuard } from '~/modules/auth/guards';
 import { CreatePostDto, FindAllPostsDto, UpdatePostDto } from './dto';
+import { UpgradePostDto } from './dto/upgrade-post.dto';
 import { PostsService } from './posts.service';
 
 @Controller('/v1/posts')
@@ -98,12 +99,12 @@ export class PostsController {
 
   @UseGuards(JwtAuthGuard)
   @Post(':id/upgrade')
-  upgradePackage(
+  upgradePost(
     @Param('id', ParseIntPipe) id: number,
-    @Body('packageId', ParseIntPipe) packageId: number,
+    @Body() upgradePostDto: UpgradePostDto,
     @Req() req: JwtRequest,
   ) {
-    return this.postsService.upgradePackage(id, packageId, req.user.userId);
+    return this.postsService.upgradePost(req.user, id, upgradePostDto);
   }
 
   @UseGuards(JwtAuthGuard)
