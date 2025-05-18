@@ -1,8 +1,8 @@
 import { IsInt, IsNotEmpty, IsString, Min } from 'class-validator';
 
-export class UpgradePostDto {
+export class PostServicePackageDto {
   @IsInt()
-  @Min(2) // Gói nâng cấp phải là trả phí
+  @Min(2)
   packageId: number;
 
   @IsString()
