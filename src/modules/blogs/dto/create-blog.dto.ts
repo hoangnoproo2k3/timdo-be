@@ -1,17 +1,17 @@
-import {
-  IsString,
-  IsNotEmpty,
-  IsOptional,
-  IsEnum,
-  IsInt,
-  MaxLength,
-  MinLength,
-  IsArray,
-  ValidateNested,
-  IsISO8601,
-} from 'class-validator';
 import { ArticleStatus } from '@prisma/client';
 import { Type } from 'class-transformer';
+import {
+  IsArray,
+  IsEnum,
+  IsInt,
+  IsISO8601,
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  MaxLength,
+  MinLength,
+  ValidateNested,
+} from 'class-validator';
 
 export class MediaItemDto {
   @IsString()
@@ -56,6 +56,10 @@ export class CreateBlogDto {
   @IsISO8601({ strict: true })
   @IsOptional()
   publishedAt?: string;
+
+  @IsString()
+  @IsOptional()
+  category?: string;
 
   @IsInt()
   @IsOptional()

@@ -1,18 +1,17 @@
 import {
-  Injectable,
-  NotFoundException,
-  InternalServerErrorException,
   ForbiddenException,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
+import { ArticleStatus, Prisma } from '@prisma/client';
+import { JwtRequest } from '~/common/interfaces/request.interface';
+import { generateUniqueSlug } from '../../common/utils/slug.utils';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateBlogDto } from './dto/create-blog.dto';
-import { generateUniqueSlug } from '../../common/utils/slug.utils';
-import { FindAllBlogDto } from './dto/find-all-blogs';
-import { Prisma } from '@prisma/client';
-import { UpdateBlogDto } from './dto/update-blog.dto';
-import { JwtRequest } from '~/common/interfaces/request.interface';
-import { ArticleStatus } from '@prisma/client';
 import { CreateCommentDto } from './dto/create-comment.dto';
+import { FindAllBlogDto } from './dto/find-all-blogs';
+import { UpdateBlogDto } from './dto/update-blog.dto';
 
 @Injectable()
 export class BlogsService {
@@ -235,7 +234,7 @@ export class BlogsService {
       }
 
       const isOwner = existingBlog.userId === user.userId;
-      const isAdmin = user.role === 'admin';
+      const isAdmin = user.role === 'ADMIN';
 
       if (!isOwner && !isAdmin) {
         throw new ForbiddenException(
