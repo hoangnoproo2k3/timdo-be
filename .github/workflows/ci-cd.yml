@@ -1,0 +1,63 @@
+name: CI/CD for Backend
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push Docker image
+        run: |
+          docker build -t hoang24/timdo-be:latest -t hoang24/timdo-be:${{ github.sha }} .
+          docker push hoang24/timdo-be:latest
+          docker push hoang24/timdo-be:${{ github.sha }}
+
+      - name: Deploy to VPS
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          # passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
+          source: '.env'
+          target: '~/timdo-2025'
+          script: |
+            cd ~/timdo-2025
+            # Lưu image hiện tại làm backup
+            CURRENT_IMAGE=$(docker inspect --format='{{.Config.Image}}' timdo-backend 2>/dev/null || echo "none")
+
+            docker pull hoang24/timdo-be:latest
+
+            docker-compose rm -f backend || true
+            docker-compose up -d db backend
+
+            # Kiểm tra trạng thái container
+            sleep 10
+            if [ "$(docker inspect -f '{{.State.Running}}' timdo-backend 2>/dev/null)" != "true" ]; then
+              echo "Error: Backend container failed to start"
+              if [ "$CURRENT_IMAGE" != "none" ]; then
+                echo "Rolling back to previous image: $CURRENT_IMAGE"
+                docker-compose rm -f backend || true
+                docker tag $CURRENT_IMAGE hoang24/timdo-be:rollback
+                sed -i "s|image: hoang24/timdo-be:latest|image: hoang24/timdo-be:rollback|g" docker-compose.yml
+                docker-compose up -d --no-deps --force-recreate backend
+                sed -i "s|image: hoang24/timdo-be:rollback|image: hoang24/timdo-be:latest|g" docker-compose.yml
+              fi
+              exit 1
+            fi
+
+            docker system prune -f
+            docker image prune -f --filter "dangling=true"
+            echo "Backend service deployed successfully and system cleaned up"
