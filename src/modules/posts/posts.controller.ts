@@ -123,6 +123,16 @@ export class PostsController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post(':id/resolve')
+  async resolvePost(
+    @Param('id', ParseIntPipe) postId: number,
+    @Req() req: JwtRequest,
+  ) {
+    const user = req.user;
+    return this.postsService.resolvePost(postId, user);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Post(':id/boost')
   boostPost(
     @Param('id', ParseIntPipe) id: number,

@@ -571,7 +571,13 @@ export class PostsService {
       }
 
       const startDate = new Date();
-      const endDate = new Date();
+      const now = new Date();
+      const baseDate =
+        currentSub && currentSub.endDate > now
+          ? new Date(currentSub.endDate)
+          : now;
+
+      const endDate = new Date(baseDate);
       endDate.setDate(endDate.getDate() + servicePackage.duration);
 
       const subscription = await tx.postSubscription.create({
@@ -711,6 +717,40 @@ export class PostsService {
       return {
         message: 'Gia hạn gói dịch vụ thành công',
         subscription,
+      };
+    });
+  }
+
+  async resolvePost(postId: number, user: JwtRequest['user']) {
+    return await this.prisma.$transaction(async (tx) => {
+      const post = await tx.post.findUnique({
+        where: { id: postId },
+        include: { user: true },
+      });
+
+      if (!post) {
+        throw new NotFoundException('Không tìm thấy bài viết');
+      }
+
+      const isOwner = post.userId === user.userId;
+      const isAdmin = user.role === Role.ADMIN;
+
+      if (!isOwner && !isAdmin) {
+        throw new ForbiddenException(
+          'Bạn không có quyền thực hiện thao tác này',
+        );
+      }
+
+      const updated = await tx.post.update({
+        where: { id: postId },
+        data: {
+          status: PostStatus.RESOLVED,
+        },
+      });
+
+      return {
+        message: 'Đã xác nhận hoàn thành bài viết',
+        post: updated,
       };
     });
   }
