@@ -15,7 +15,12 @@ import {
 } from '@nestjs/common';
 import { JwtRequest } from '~/common/interfaces';
 import { JwtAuthGuard } from '~/modules/auth/guards';
-import { CreatePostDto, FindAllPostsDto, UpdatePostDto } from './dto';
+import {
+  CreatePostDto,
+  FindAllPostsDto,
+  PostServicePackageDto,
+  UpdatePostDto,
+} from './dto';
 import { PostsService } from './posts.service';
 
 @Controller('/v1/posts')
@@ -98,18 +103,23 @@ export class PostsController {
 
   @UseGuards(JwtAuthGuard)
   @Post(':id/upgrade')
-  upgradePackage(
+  upgradePost(
     @Param('id', ParseIntPipe) id: number,
-    @Body('packageId', ParseIntPipe) packageId: number,
+    @Body() upgradePostDto: PostServicePackageDto,
     @Req() req: JwtRequest,
   ) {
-    return this.postsService.upgradePackage(id, packageId, req.user.userId);
+    return this.postsService.upgradePost(req.user, id, upgradePostDto);
   }
 
   @UseGuards(JwtAuthGuard)
   @Post(':id/renew')
-  renewPackage(@Param('id', ParseIntPipe) id: number, @Req() req: JwtRequest) {
-    return this.postsService.renewPackage(id, req.user.userId);
+  renewPost(
+    @Param('id', ParseIntPipe) postId: number,
+    @Body() dto: PostServicePackageDto,
+    @Req() req: JwtRequest,
+  ) {
+    const user = req.user;
+    return this.postsService.renewPost(user, postId, dto);
   }
 
   @UseGuards(JwtAuthGuard)
