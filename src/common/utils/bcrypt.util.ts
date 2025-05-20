@@ -1,7 +1,6 @@
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 
-export async function hashPassword(password: string) {
-  const saltRounds = 10;
+export async function hashPassword(password: string, saltRounds = 10) {
   return bcrypt.hash(password, saltRounds);
 }
 

@@ -1,9 +1,6 @@
 # Sử dụng image Node.js chính thức làm base image
 FROM node:20
 
-# Cài đặt các công cụ cần thiết để build bcrypt
-RUN apt-get update && apt-get install -y python3 make g++
-
 # Thiết lập thư mục làm việc bên trong container
 WORKDIR /app-be
 
@@ -17,9 +14,6 @@ RUN pnpm install --frozen-lockfile
 # Copy toàn bộ các file ứng dụng còn lại (bao gồm thư mục prisma)
 COPY . .
 
-# Rebuild bcrypt để đảm bảo tương thích với môi trường
-RUN pnpm rebuild bcrypt
-
 # Sinh Prisma Client
 RUN pnpm run prisma:generate
 
@@ -27,7 +21,7 @@ RUN pnpm run prisma:generate
 RUN pnpm run build
 
 # Expose cổng ứng dụng
-EXPOSE 2025
+EXPOSE 2026
 
-# Chạy Prisma migrate, seed và khởi động ứng dụng
-CMD ["sh", "-c", "sleep 10 && pnpm run prisma:db:push && pnpm run db:seed && pnpm run start:prod"]
+# Chạy Prisma migrate và khởi động ứng dụng
+CMD ["sh", "-c", "sleep 10 && pnpm run prisma:db:push:seed && pnpm run start:prod"]
