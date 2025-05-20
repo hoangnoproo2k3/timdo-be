@@ -8,6 +8,7 @@ on:
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -32,7 +33,6 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           # passphrase: ${{ secrets.VPS_SSH_PASSPHRASE }}
           source: '.env'
-          target: '~/timdo-2025'
           script: |
             cd ~/timdo-2025
             # Lưu image hiện tại làm backup
@@ -41,7 +41,7 @@ jobs:
             docker pull hoang24/timdo-be:latest
 
             docker-compose rm -f backend || true
-            docker-compose up -d db backend
+            docker-compose up -d --no-deps --force-recreate db backend
 
             # Kiểm tra trạng thái container
             sleep 10
@@ -49,15 +49,16 @@ jobs:
               echo "Error: Backend container failed to start"
               if [ "$CURRENT_IMAGE" != "none" ]; then
                 echo "Rolling back to previous image: $CURRENT_IMAGE"
-                docker-compose rm -f backend || true
                 docker tag $CURRENT_IMAGE hoang24/timdo-be:rollback
                 sed -i "s|image: hoang24/timdo-be:latest|image: hoang24/timdo-be:rollback|g" docker-compose.yml
+                docker-compose rm -f backend || true
                 docker-compose up -d --no-deps --force-recreate backend
                 sed -i "s|image: hoang24/timdo-be:rollback|image: hoang24/timdo-be:latest|g" docker-compose.yml
               fi
               exit 1
             fi
 
+            # Dọn dẹp Docker
             docker system prune -f
             docker image prune -f --filter "dangling=true"
             echo "Backend service deployed successfully and system cleaned up"
