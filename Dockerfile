@@ -1,28 +1,33 @@
+# Sử dụng image Node.js chính thức làm base image
 FROM node:20
 
+# Cài đặt các công cụ cần thiết để build bcrypt
+RUN apt-get update && apt-get install -y python3 make g++
+
+# Thiết lập thư mục làm việc bên trong container
 WORKDIR /app-be
 
-# Cài đặt dependencies build
-RUN apt-get update && \
-    apt-get install -y python3 make g++ && \
-    rm -rf /var/lib/apt/lists/*
+# Copy file package.json và pnpm-lock.yaml vào thư mục làm việc
+COPY package.json pnpm-lock.yaml ./
 
-# Copy package.json và cài đặt dependencies
-COPY package.json ./
-RUN npm install
+# Cài đặt pnpm toàn cục và cài đặt dependencies
+RUN npm install -g pnpm
+RUN pnpm install --frozen-lockfile
 
-# Copy toàn bộ source code
+# Copy toàn bộ các file ứng dụng còn lại (bao gồm thư mục prisma)
 COPY . .
 
-# Generate Prisma Client và build ứng dụng
-RUN npx prisma generate
-RUN npm run build
+# Rebuild bcrypt để đảm bảo tương thích với môi trường
+RUN pnpm rebuild bcrypt
 
-# Kiểm tra cấu trúc thư mục sau build
-RUN ls -la dist/
+# Sinh Prisma Client
+RUN pnpm run prisma:generate
 
-# Port cho ứng dụng
-EXPOSE 2026
+# Build ứng dụng NestJS
+RUN pnpm run build
 
-# Chạy ứng dụng
-CMD ["sh", "-c", "npx prisma db push && node dist/main.js"]
+# Expose cổng ứng dụng
+EXPOSE 2025
+
+# Chạy Prisma migrate, seed và khởi động ứng dụng
+CMD ["sh", "-c", "sleep 10 && pnpm run prisma:db:push && pnpm run db:seed && pnpm run start:prod"]
