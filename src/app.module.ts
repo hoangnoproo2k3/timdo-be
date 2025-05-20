@@ -6,6 +6,7 @@ import { AppService } from './app.service';
 import { AuthModule } from './modules/auth/auth.module';
 import { BlogsModule } from './modules/blogs/blogs.module';
 import { TokenCleanupModule } from './modules/cleanup/token-cleanup.module';
+import { EmailModule } from './modules/email/email.module';
 import { ModerationModule } from './modules/moderation/moderation.module';
 import { PostsModule } from './modules/posts/posts.module';
 import { S3Module } from './modules/s3/s3.module';
@@ -24,6 +25,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
     TasksModule,
     ModerationModule,
     BlogsModule,
+    EmailModule,
   ],
   controllers: [AppController],
   providers: [AppService],
