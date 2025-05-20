@@ -14,11 +14,10 @@ RUN pnpm install --frozen-lockfile
 # Copy toàn bộ các file ứng dụng còn lại (bao gồm thư mục prisma)
 COPY . .
 
-# Sinh Prisma Client
-RUN pnpm run prisma:generate
-
-# Build ứng dụng NestJS
-RUN pnpm run build
+# Sinh Prisma Client và build ứng dụng
+RUN pnpm run prisma:generate && \
+    pnpm run build && \
+    ls -la dist/
 
 # Expose cổng ứng dụng
 EXPOSE 2026

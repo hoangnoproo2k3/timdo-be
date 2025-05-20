@@ -10,7 +10,11 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   ScheduleModule.forRoot();
   app.enableCors({
-    origin: ['http://localhost:3000', 'http://localhost:3001'],
+    origin: [
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://14.225.205.104',
+    ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
     credentials: true,
     allowedHeaders: [
@@ -41,8 +45,8 @@ async function bootstrap() {
   const apiPrefix = process.env.NODE_ENV === 'production' ? '' : 'api';
   app.setGlobalPrefix(apiPrefix);
 
-  const port = process.env.PORT || 3001;
-  await app.listen(port);
+  const port = process.env.PORT || 2027;
+  await app.listen(port, '0.0.0.0');
   console.log('http://localhost:' + port);
 }
 bootstrap().catch((error) => {
