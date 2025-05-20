@@ -7,14 +7,17 @@ import {
 } from '@nestjs/common';
 import {
   PaymentStatus,
+  Post,
   PostStatus,
   PostType,
   Prisma,
   Role,
   SubscriptionStatus,
+  User,
 } from '@prisma/client';
 import { JwtRequest } from '~/common/interfaces';
 import { generateUniqueSlug } from '~/common/utils';
+import { EmailService } from '~/modules/email/email.service';
 import { PrismaService } from '~/prisma';
 import {
   CreatePostDto,
@@ -31,7 +34,10 @@ interface MediaItem {
 
 @Injectable()
 export class PostsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
 
   async createPost(user: JwtRequest['user'], createPostDto: CreatePostDto) {
     const userId = user.userId;
@@ -166,6 +172,22 @@ export class PostsService {
           },
         },
       });
+
+      // Now, send the email if the conditions are met
+      if (
+        postWithMedia &&
+        postData.postType === PostType.LOST &&
+        packageId === 1
+      ) {
+        try {
+          await this.emailService.sendFreePostCreationEmail(
+            postWithMedia.user as User,
+            postWithMedia as unknown as Post,
+          );
+        } catch (error) {
+          console.error('Error sending email:', error);
+        }
+      }
 
       return {
         message: 'Post created successfully',

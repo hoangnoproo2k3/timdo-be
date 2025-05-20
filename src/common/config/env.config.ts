@@ -17,6 +17,13 @@ export interface EnvConfig {
   AWS_REGION: string;
   AWS_S3_BUCKET: string;
   CLOUDFRONT_URL: string;
+  EMAIL_HOST: string;
+  EMAIL_PORT: number;
+  EMAIL_SECURE: boolean;
+  EMAIL_USER: string;
+  EMAIL_PASSWORD: string;
+  EMAIL_FROM: string;
+  FRONTEND_URL: string;
 }
 
 const configService = new ConfigService();
@@ -47,6 +54,16 @@ const envConfig: EnvConfig = {
   AWS_REGION: configService.get<string>('AWS_REGION') || '',
   AWS_S3_BUCKET: configService.get<string>('AWS_S3_BUCKET') || '',
   CLOUDFRONT_URL: configService.get<string>('CLOUDFRONT_URL') || '',
+
+  EMAIL_HOST: configService.get<string>('EMAIL_HOST') || 'smtp.gmail.com',
+  EMAIL_PORT: configService.get<number>('EMAIL_PORT') || 587,
+  EMAIL_SECURE: configService.get<string>('EMAIL_SECURE') === 'true',
+  EMAIL_USER: configService.get<string>('EMAIL_USER') || '',
+  EMAIL_PASSWORD: configService.get<string>('EMAIL_PASSWORD') || '',
+  EMAIL_FROM:
+    configService.get<string>('EMAIL_FROM') || 'hotrocongdong247@gmail.com',
+  FRONTEND_URL:
+    configService.get<string>('FRONTEND_URL') || 'http://localhost:3000',
 };
 
 // Validate required environment variables
@@ -60,6 +77,9 @@ const requiredEnvVars: (keyof EnvConfig)[] = [
   'AWS_REGION',
   'AWS_S3_BUCKET',
   'CLOUDFRONT_URL',
+  // Email is optional for development
+  'EMAIL_USER',
+  'EMAIL_PASSWORD',
 ];
 
 requiredEnvVars.forEach((key) => {
