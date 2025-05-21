@@ -12,10 +12,14 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '~/prisma';
 import { ModerateAction, ModeratePostDto } from '../posts/dto';
+import { EmailService } from '../email/email.service';
 
 @Injectable()
 export class ModerationService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private emailService: EmailService,
+  ) {}
 
   async getPostsNeedingModeration(page = 1, limit = 15) {
     const skip = (page - 1) * limit;
@@ -296,6 +300,31 @@ export class ModerationService {
           },
         },
       });
+
+      // Gửi email thông báo dựa trên hành động
+      try {
+        if (dto.action === ModerateAction.APPROVE) {
+          await this.emailService.sendPostApprovalEmail(
+            updatedPost.user,
+            updatedPost,
+          );
+        } else if (dto.action === ModerateAction.REJECT) {
+          await this.emailService.sendPostRejectionEmail(
+            updatedPost.user,
+            updatedPost,
+            dto.reason,
+          );
+        } else if (dto.action === ModerateAction.CONFIRM_PAYMENT) {
+          const packageInfo = updatedPost.postSubscriptions[0]?.package;
+          await this.emailService.sendPaymentConfirmationEmail(
+            updatedPost.user,
+            updatedPost,
+            packageInfo,
+          );
+        }
+      } catch (error) {
+        console.error('Error sending email:', error);
+      }
 
       let message = '';
       switch (dto.action) {
