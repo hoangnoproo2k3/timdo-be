@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { Role } from '@prisma/client';
 import { envConfig } from '~/common/config/env.config';
 import {
   comparePassword,
@@ -336,5 +337,33 @@ export class AuthService {
     }
 
     return user;
+  }
+
+  async checkIsAdmin(refreshToken: string): Promise<boolean> {
+    try {
+      const existingToken = await this.prisma.refreshToken.findUnique({
+        where: { token: refreshToken },
+        include: { user: true },
+      });
+
+      if (!existingToken) {
+        throw new UnauthorizedException('Invalid refresh token');
+      }
+
+      if (existingToken.expiresAt < new Date()) {
+        await this.prisma.refreshToken.delete({
+          where: { id: existingToken.id },
+        });
+        throw new UnauthorizedException('Refresh token has expired');
+      }
+
+      return existingToken.user.role === Role.ADMIN;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      console.error('Admin check error:', error);
+      throw new InternalServerErrorException('Failed to verify admin status');
+    }
   }
 }

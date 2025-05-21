@@ -153,4 +153,26 @@ export class AuthController {
       user,
     };
   }
+
+  @Post('check-admin')
+  @HttpCode(HttpStatus.OK)
+  async checkAdmin(
+    @Body() body: { refreshToken?: string },
+    @Req() req: Request,
+  ) {
+    const refreshToken =
+      body.refreshToken ||
+      (req?.cookies['refresh_token'] as string | undefined);
+    console.log('Refresh token:', refreshToken);
+
+    if (!refreshToken) {
+      throw new BadRequestException('Refresh token not found');
+    }
+
+    const isAdmin = await this.authService.checkIsAdmin(refreshToken);
+
+    return {
+      isAdmin,
+    };
+  }
 }
