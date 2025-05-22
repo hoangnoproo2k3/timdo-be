@@ -6,12 +6,13 @@ export class ServicesService {
   constructor(private prisma: PrismaService) {}
 
   async getServices() {
-    const services = await this.prisma.servicePackage.findMany({});
-    return services.map((service) => ({
-      ...service,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      features: service.features ? JSON.parse(service.features) : [],
-    }));
+    const services = await this.prisma.servicePackage.findMany({
+      // orderBy: {
+      //   createdAt: 'desc',
+      // },
+    });
+
+    return services;
   }
 
   async getServiceDetail(serviceId: number) {
