@@ -337,7 +337,7 @@ export class EmailService {
           : ''
       }
       <p>Bài đăng của bạn hiện đã được hiển thị công khai trên hệ thống.</p>
-      <p>Xem bài đăng <a href="${envConfig.FRONTEND_URL}/posts/${post.slug}">tại đây</a>.</p>
+      <p>Xem bài đăng <a href="${envConfig.FRONTEND_URL}/${post.slug}">tại đây</a>.</p>
     `;
 
     return this.sendEmail(user.email, subject, html);
@@ -382,7 +382,7 @@ export class EmailService {
       <p>Gói dịch vụ: <strong>${packageInfo.name}</strong></p>
       <p>Thời hạn: ${packageInfo.duration} ngày</p>
       <p>Bài đăng của bạn hiện đã được hiển thị công khai trên hệ thống.</p>
-      <p>Xem bài đăng <a href="${envConfig.FRONTEND_URL}/posts/${post.slug}">tại đây</a>.</p>
+      <p>Xem bài đăng <a href="${envConfig.FRONTEND_URL}/${post.slug}">tại đây</a>.</p>
     `;
 
     return this.sendEmail(user.email, subject, html);

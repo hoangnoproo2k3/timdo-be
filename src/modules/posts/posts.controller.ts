@@ -77,8 +77,8 @@ export class PostsController {
   }
 
   @Get(':id')
-  getPostDetail(@Param('id', ParseIntPipe) id: number) {
-    return this.postsService.getPostDetail(id);
+  getPostDetail(@Param('id') idOrSlug: string) {
+    return this.postsService.getPostDetailByIdOrSlug(idOrSlug);
   }
 
   @UseGuards(JwtAuthGuard)

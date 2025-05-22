@@ -447,55 +447,74 @@ export class PostsService {
     };
   }
 
-  async getPostDetail(postId: number) {
+  async getPostDetailByIdOrSlug(idOrSlug: string) {
+    const isNumeric = /^\d+$/.test(idOrSlug);
+
+    const where = isNumeric
+      ? { id: parseInt(idOrSlug, 10) }
+      : { slug: idOrSlug };
+
     const post = await this.prisma.post.findUnique({
-      where: { id: postId },
-      include: {
-        user: {
-          select: {
-            id: true,
-            username: true,
-            email: true,
-            avatarUrl: true,
-          },
-        },
-        tags: true,
-        media: true,
-        likes: true,
-        comments: true,
-        reports: true,
-        postSubscriptions: {
-          include: {
-            package: true,
-            payment: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        },
-        boostTransactions: {
-          include: {
-            payment: true,
-          },
-          orderBy: {
-            createdAt: 'desc',
-          },
-        },
-        _count: {
-          select: {
-            comments: true,
-            likes: true,
-            reports: true,
-          },
-        },
-      },
+      where,
+      include: this.getPostIncludeOptions(),
     });
 
     if (!post) {
-      throw new NotFoundException('Post not found');
+      throw new NotFoundException('Không tìm thấy bài viết');
     }
 
-    // Increment view count
+    await this.incrementViewCount(post.id);
+
+    return this.formatPostResponse(post);
+  }
+
+  async getPostDetail(postId: number) {
+    return this.getPostDetailByIdOrSlug(postId.toString());
+  }
+
+  private getPostIncludeOptions() {
+    return {
+      user: {
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          avatarUrl: true,
+        },
+      },
+      tags: true,
+      media: true,
+      likes: true,
+      comments: true,
+      reports: true,
+      postSubscriptions: {
+        include: {
+          package: true,
+          payment: true,
+        },
+        orderBy: {
+          createdAt: 'desc' as const,
+        },
+      },
+      boostTransactions: {
+        include: {
+          payment: true,
+        },
+        orderBy: {
+          createdAt: 'desc' as const,
+        },
+      },
+      _count: {
+        select: {
+          comments: true,
+          likes: true,
+          reports: true,
+        },
+      },
+    } as const;
+  }
+
+  private async incrementViewCount(postId: number) {
     await this.prisma.post.update({
       where: { id: postId },
       data: {
@@ -504,7 +523,13 @@ export class PostsService {
         },
       },
     });
+  }
 
+  private formatPostResponse(
+    post: Prisma.PostGetPayload<{
+      include: ReturnType<PostsService['getPostIncludeOptions']>;
+    }>,
+  ) {
     const latestSubscription = post.postSubscriptions?.[0];
     const payment = latestSubscription?.payment;
 
