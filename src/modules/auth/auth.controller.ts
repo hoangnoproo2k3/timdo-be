@@ -34,9 +34,13 @@ export class AuthController {
     sameSite: 'lax';
     maxAge: number;
   } {
+    const isSecureContext =
+      envConfig.nodeEnv === 'production' &&
+      envConfig.loginRedirectUrl?.startsWith('https');
+
     return {
       httpOnly: true,
-      secure: envConfig.nodeEnv === 'production',
+      secure: isSecureContext,
       sameSite: 'lax',
       maxAge: envConfig.refreshTokenExpiresInDays * 24 * 60 * 60 * 1000, // days to ms
     };
