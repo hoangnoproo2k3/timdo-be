@@ -7,10 +7,10 @@ import {
 import {
   IsBoolean,
   IsEnum,
+  IsNumber,
   IsNumberString,
   IsOptional,
   IsString,
-  IsNumber,
 } from 'class-validator';
 
 export class FindAllPostsDto {
@@ -49,6 +49,10 @@ export class FindAllPostsDto {
   @IsOptional()
   @IsString()
   location?: string;
+
+  @IsOptional()
+  @IsString()
+  category?: string;
 
   @IsOptional()
   @IsString()
