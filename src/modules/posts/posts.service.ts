@@ -495,14 +495,19 @@ export class PostsService {
         orderBy: {
           createdAt: 'desc' as const,
         },
+        take: 1,
       },
       boostTransactions: {
+        where: {
+          isActive: true,
+          endDate: {
+            gte: new Date(),
+          },
+        },
         include: {
           payment: true,
         },
-        orderBy: {
-          createdAt: 'desc' as const,
-        },
+        take: 1,
       },
       _count: {
         select: {
@@ -532,13 +537,24 @@ export class PostsService {
   ) {
     const latestSubscription = post.postSubscriptions?.[0];
     const payment = latestSubscription?.payment;
+    const activeBoost = post.boostTransactions?.[0];
 
     return {
       ...post,
       commentsCount: post._count.comments,
       likesCount: post._count.likes,
+      reportsCount: post._count.reports,
       isPaid: !!latestSubscription && latestSubscription.packageId > 1,
       paymentStatus: payment?.status,
+      currentPackage: latestSubscription?.package,
+      subscriptionStatus: latestSubscription?.status,
+      isBoosted: !!activeBoost,
+      boostEndDate: activeBoost?.endDate,
+      boostPaymentStatus: activeBoost?.payment?.status,
+      needsPaymentConfirmation:
+        !!latestSubscription &&
+        latestSubscription.packageId > 1 &&
+        payment?.status === PaymentStatus.PENDING,
     };
   }
 
