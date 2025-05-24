@@ -49,7 +49,13 @@ export class PostsController {
 
   @Get()
   async getPosts(@Query() findAllPostsDto: FindAllPostsDto) {
-    return this.postsService.getPosts(findAllPostsDto);
+    if (findAllPostsDto.postType === 'LOST') {
+      return this.postsService.getPublicPosts(findAllPostsDto);
+    } else if (findAllPostsDto.postType === 'FOUND') {
+      return this.postsService.getFoundPosts(findAllPostsDto);
+    }
+
+    return this.postsService.getPublicPosts(findAllPostsDto);
   }
 
   @UseGuards(JwtAuthGuard)

@@ -447,6 +447,188 @@ export class PostsService {
     };
   }
 
+  async getPublicPosts(dto: FindAllPostsDto) {
+    const page = parseInt(String(dto.page || 1));
+    const limit = parseInt(String(dto.limit || 15));
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.PostWhereInput = {
+      deletedAt: null,
+      status: PostStatus.APPROVED,
+      postType: PostType.LOST,
+    };
+
+    const search = dto.search?.trim();
+    if (search) {
+      where.OR = [
+        { title: { contains: search } },
+        { description: { contains: search } },
+        { location: { contains: search } },
+        { category: { contains: search } },
+      ];
+    }
+
+    if (dto.location) {
+      where.location = { contains: dto.location };
+    }
+
+    if (dto.category) {
+      where.category = dto.category;
+    }
+
+    const [posts, total] = await this.prisma.$transaction([
+      this.prisma.post.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [{ isBoosted: 'desc' }, { createdAt: 'desc' }],
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          description: true,
+          location: true,
+          category: true,
+          date: true,
+          viewCount: true,
+          isBoosted: true,
+          boostUntil: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              username: true,
+              avatarUrl: true,
+            },
+          },
+          media: {
+            select: {
+              id: true,
+              url: true,
+              type: true,
+            },
+            take: 1, // Chỉ lấy 1 ảnh đầu tiên cho danh sách
+          },
+          postSubscriptions: {
+            where: {
+              status: SubscriptionStatus.ACTIVE,
+              endDate: {
+                gte: new Date(), // Chỉ lấy subscription còn hạn
+              },
+            },
+            select: {
+              package: {
+                select: {
+                  name: true,
+                  packageType: true,
+                },
+              },
+              endDate: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
+          },
+          _count: {
+            select: {
+              likes: true,
+              comments: true,
+            },
+          },
+        },
+      }),
+      this.prisma.post.count({ where }),
+    ]);
+
+    // Process posts để thêm thông tin package và sắp xếp theo ưu tiên
+    const processedPosts = posts.map((post) => {
+      const activeSubscription = post.postSubscriptions?.[0];
+
+      let packageInfo: { name: string; type: string } | null = null;
+      let packagePriority = 0;
+
+      if (activeSubscription?.package) {
+        const packageType = activeSubscription.package.packageType;
+        packageInfo = {
+          name: activeSubscription.package.name,
+          type: packageType,
+        };
+
+        // Set priority for sorting
+        switch (packageType) {
+          case 'VIP':
+            packagePriority = 4;
+            break;
+          case 'EXPRESS':
+            packagePriority = 3;
+            break;
+          case 'PRIORITY':
+            packagePriority = 2;
+            break;
+          case 'FREE':
+            packagePriority = 1;
+            break;
+          default:
+            packagePriority = 0;
+        }
+      }
+
+      return {
+        id: post.id,
+        title: post.title,
+        slug: post.slug,
+        description: post.description,
+        location: post.location,
+        category: post.category,
+        date: post.date,
+        viewCount: post.viewCount,
+        isBoosted: post.isBoosted,
+        boostUntil: post.boostUntil,
+        createdAt: post.createdAt,
+        user: post.user,
+        thumbnail: post.media?.[0] || null,
+        package: packageInfo,
+        likesCount: post._count.likes,
+        commentsCount: post._count.comments,
+        _packagePriority: packagePriority,
+        _isBoosted: post.isBoosted ? 1 : 0,
+      };
+    });
+
+    // Sắp xếp theo thứ tự ưu tiên: Boosted > Package Priority > Newest
+    processedPosts.sort((a, b) => {
+      // 1. Boosted posts first
+      if (a._isBoosted !== b._isBoosted) {
+        return b._isBoosted - a._isBoosted;
+      }
+
+      // 2. Package priority (VIP > EXPRESS > PRIORITY > FREE/none)
+      if (a._packagePriority !== b._packagePriority) {
+        return b._packagePriority - a._packagePriority;
+      }
+
+      // 3. Newest first
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+
+    // Remove sorting fields before returning
+    const finalPosts = processedPosts.map(
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      ({ _packagePriority, _isBoosted, ...post }) => post,
+    );
+
+    return {
+      data: finalPosts,
+      meta: {
+        totalItems: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        pageSize: limit,
+      },
+    };
+  }
+
   async getPostDetailByIdOrSlug(idOrSlug: string) {
     const isNumeric = /^\d+$/.test(idOrSlug);
 
@@ -1104,5 +1286,103 @@ export class PostsService {
     };
 
     return stats;
+  }
+
+  async getFoundPosts(dto: FindAllPostsDto) {
+    const page = parseInt(String(dto.page || 1));
+    const limit = parseInt(String(dto.limit || 15));
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.PostWhereInput = {
+      deletedAt: null,
+      status: PostStatus.APPROVED,
+      postType: PostType.FOUND,
+    };
+
+    const search = dto.search?.trim();
+    if (search) {
+      where.OR = [
+        { title: { contains: search } },
+        { description: { contains: search } },
+        { location: { contains: search } },
+        { category: { contains: search } },
+      ];
+    }
+
+    if (dto.location) {
+      where.location = { contains: dto.location };
+    }
+
+    if (dto.category) {
+      where.category = dto.category;
+    }
+
+    const [posts, total] = await this.prisma.$transaction([
+      this.prisma.post.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [{ createdAt: 'desc' }],
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          description: true,
+          location: true,
+          category: true,
+          date: true,
+          viewCount: true,
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              username: true,
+              avatarUrl: true,
+            },
+          },
+          media: {
+            select: {
+              id: true,
+              url: true,
+              type: true,
+            },
+            take: 1,
+          },
+          _count: {
+            select: {
+              likes: true,
+              comments: true,
+            },
+          },
+        },
+      }),
+      this.prisma.post.count({ where }),
+    ]);
+
+    const processedPosts = posts.map((post) => ({
+      id: post.id,
+      title: post.title,
+      slug: post.slug,
+      description: post.description,
+      location: post.location,
+      category: post.category,
+      date: post.date,
+      viewCount: post.viewCount,
+      createdAt: post.createdAt,
+      user: post.user,
+      thumbnail: post.media?.[0] || null,
+      likesCount: post._count.likes,
+      commentsCount: post._count.comments,
+    }));
+
+    return {
+      data: processedPosts,
+      meta: {
+        totalItems: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        pageSize: limit,
+      },
+    };
   }
 }
