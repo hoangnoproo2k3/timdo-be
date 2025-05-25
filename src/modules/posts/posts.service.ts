@@ -1385,4 +1385,145 @@ export class PostsService {
       },
     };
   }
+
+  async getResolvedPosts(dto: FindAllPostsDto) {
+    const page = parseInt(String(dto.page || 1));
+    const limit = parseInt(String(dto.limit || 15));
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.PostWhereInput = {
+      deletedAt: null,
+      status: PostStatus.RESOLVED,
+    };
+
+    if (dto.postType) {
+      where.postType = dto.postType;
+    }
+
+    if (dto.userId) {
+      where.userId = dto.userId;
+    }
+
+    const search = dto.search?.trim();
+    if (search) {
+      where.OR = [
+        { title: { contains: search } },
+        { description: { contains: search } },
+        { location: { contains: search } },
+        { category: { contains: search } },
+      ];
+    }
+
+    if (dto.location) {
+      where.location = { contains: dto.location };
+    }
+
+    if (dto.category) {
+      where.category = dto.category;
+    }
+
+    const [posts, total] = await this.prisma.$transaction([
+      this.prisma.post.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: [{ updatedAt: 'desc' }], // Sort by when they were resolved
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          description: true,
+          postType: true,
+          location: true,
+          category: true,
+          date: true,
+          viewCount: true,
+          createdAt: true,
+          updatedAt: true, // When it was resolved
+          user: {
+            select: {
+              id: true,
+              username: true,
+              avatarUrl: true,
+            },
+          },
+          media: {
+            select: {
+              id: true,
+              url: true,
+              type: true,
+            },
+            take: 1,
+          },
+          postSubscriptions: {
+            where: {
+              status: SubscriptionStatus.ACTIVE,
+            },
+            select: {
+              package: {
+                select: {
+                  name: true,
+                  packageType: true,
+                },
+              },
+              endDate: true,
+            },
+            orderBy: {
+              createdAt: 'desc',
+            },
+            take: 1,
+          },
+          _count: {
+            select: {
+              likes: true,
+              comments: true,
+            },
+          },
+        },
+      }),
+      this.prisma.post.count({ where }),
+    ]);
+
+    const processedPosts = posts.map((post) => {
+      const activeSubscription = post.postSubscriptions?.[0];
+
+      let packageInfo: { name: string; type: string } | null = null;
+
+      if (activeSubscription?.package) {
+        packageInfo = {
+          name: activeSubscription.package.name,
+          type: activeSubscription.package.packageType,
+        };
+      }
+
+      return {
+        id: post.id,
+        title: post.title,
+        slug: post.slug,
+        description: post.description,
+        postType: post.postType,
+        location: post.location,
+        category: post.category,
+        date: post.date,
+        viewCount: post.viewCount,
+        createdAt: post.createdAt,
+        resolvedAt: post.updatedAt, // When it was marked as resolved
+        user: post.user,
+        thumbnail: post.media?.[0] || null,
+        package: packageInfo,
+        likesCount: post._count.likes,
+        commentsCount: post._count.comments,
+      };
+    });
+
+    return {
+      data: processedPosts,
+      meta: {
+        totalItems: total,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+        pageSize: limit,
+      },
+    };
+  }
 }

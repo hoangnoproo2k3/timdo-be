@@ -58,6 +58,11 @@ export class PostsController {
     return this.postsService.getPublicPosts(findAllPostsDto);
   }
 
+  @Get('resolved')
+  async getResolvedPosts(@Query() findAllPostsDto: FindAllPostsDto) {
+    return this.postsService.getResolvedPosts(findAllPostsDto);
+  }
+
   @UseGuards(JwtAuthGuard)
   @Get('admin')
   async getAdminPosts(
