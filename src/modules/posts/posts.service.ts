@@ -25,6 +25,7 @@ import {
   PostServicePackageDto,
   UpdatePostDto,
 } from './dto';
+import { CreatePostCommentDto } from './dto/create-post-comment.dto';
 
 interface MediaItem {
   url: string;
@@ -1525,5 +1526,90 @@ export class PostsService {
         pageSize: limit,
       },
     };
+  }
+
+  async createPostComment(
+    postId: number,
+    userId: number,
+    createCommentDto: CreatePostCommentDto,
+  ) {
+    const { content, parentId } = createCommentDto;
+
+    const post = await this.prisma.post.findUnique({
+      where: { id: postId },
+    });
+
+    if (!post) {
+      throw new NotFoundException('Post not found');
+    }
+
+    if (parentId) {
+      const parentComment = await this.prisma.comment.findUnique({
+        where: { id: parentId },
+      });
+
+      if (!parentComment) {
+        throw new NotFoundException('Parent comment not found');
+      }
+    }
+
+    const comment = await this.prisma.comment.create({
+      data: {
+        content,
+        user: {
+          connect: { id: userId },
+        },
+        post: {
+          connect: { id: postId },
+        },
+        ...(parentId && {
+          parent: {
+            connect: { id: parentId },
+          },
+        }),
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            avatarUrl: true,
+          },
+        },
+        replies: {
+          include: {
+            user: {
+              select: {
+                id: true,
+                username: true,
+                avatarUrl: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return comment;
+  }
+
+  async deletePostComment(commentId: number, userId: number) {
+    const comment = await this.prisma.comment.findUnique({
+      where: { id: commentId },
+    });
+
+    if (!comment) {
+      throw new NotFoundException('Comment not found');
+    }
+
+    if (comment.userId !== userId) {
+      throw new ForbiddenException('You can only delete your own comments');
+    }
+
+    await this.prisma.comment.delete({
+      where: { id: commentId },
+    });
+
+    return { message: 'Comment deleted successfully' };
   }
 }
