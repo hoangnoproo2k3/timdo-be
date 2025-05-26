@@ -14,6 +14,7 @@ async function bootstrap() {
       'http://localhost:3000',
       'http://localhost:3001',
       'http://14.225.205.104',
+      'https://timdo24h.com',
     ],
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
     credentials: true,
@@ -40,9 +41,9 @@ async function bootstrap() {
     .setVersion('1.0')
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, document);
+  SwaggerModule.setup('apis', app, document);
 
-  const apiPrefix = process.env.NODE_ENV === 'production' ? '' : 'api';
+  const apiPrefix = process.env.NODE_ENV === 'production' ? '' : 'apis';
   app.setGlobalPrefix(apiPrefix);
 
   const port = process.env.PORT || 2027;
