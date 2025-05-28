@@ -4,6 +4,7 @@ import {
   IsArray,
   IsDateString,
   IsEnum,
+  IsInt,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -20,6 +21,20 @@ export class MediaItemDto {
   @IsString()
   @IsNotEmpty()
   type: string;
+}
+
+export class TagDto {
+  @IsInt()
+  @IsOptional()
+  id?: number;
+
+  @IsString()
+  @IsNotEmpty()
+  name: string;
+
+  @IsInt()
+  @IsOptional()
+  count?: number;
 }
 
 export class CreatePostDto {
@@ -74,4 +89,10 @@ export class CreatePostDto {
   @ValidateNested({ each: true })
   @Type(() => MediaItemDto)
   mediaItems?: MediaItemDto[];
+
+  @IsArray()
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => TagDto)
+  tags?: TagDto[];
 }

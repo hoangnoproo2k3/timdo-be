@@ -48,7 +48,7 @@ export class PostsService {
         throw new InternalServerErrorException('Generated slug is invalid');
       }
 
-      const { mediaItems, packageId, paymentProofUrl, ...postData } =
+      const { mediaItems, packageId, paymentProofUrl, tags, ...postData } =
         createPostDto;
 
       if (
@@ -78,6 +78,17 @@ export class PostsService {
           ...postData,
           slug,
           userId,
+          tags: tags
+            ? {
+                connectOrCreate: tags.map((tag) => ({
+                  where: { name: tag.name },
+                  create: {
+                    name: tag.name,
+                    slug: tag.name.toLowerCase().replace(/\s+/g, '-'),
+                  },
+                })),
+              }
+            : undefined,
           status: initialStatus,
         },
       });
@@ -241,11 +252,24 @@ export class PostsService {
         updatePost.slug = await generateUniqueSlug(tx, updatePost.title);
       }
 
-      const { mediaItems, ...postData } = updatePost;
+      const { mediaItems, tags, ...postData } = updatePost;
 
       await tx.post.update({
         where: { id },
-        data: postData,
+        data: {
+          ...postData,
+          tags: tags
+            ? {
+                connectOrCreate: tags.map((tag) => ({
+                  where: { name: tag.name },
+                  create: {
+                    name: tag.name,
+                    slug: tag.name.toLowerCase().replace(/\s+/g, '-'),
+                  },
+                })),
+              }
+            : undefined,
+        },
       });
 
       // Xử lý media cho bài đăng
@@ -381,6 +405,7 @@ export class PostsService {
               avatarUrl: true,
             },
           },
+          tags: true,
           media: true,
           postSubscriptions: {
             include: {
@@ -495,6 +520,12 @@ export class PostsService {
           isBoosted: true,
           boostUntil: true,
           createdAt: true,
+          tags: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           user: {
             select: {
               id: true,
@@ -587,6 +618,7 @@ export class PostsService {
         isBoosted: post.isBoosted,
         boostUntil: post.boostUntil,
         createdAt: post.createdAt,
+        tags: post.tags,
         user: post.user,
         thumbnail: post.media?.[0] || null,
         package: packageInfo,
