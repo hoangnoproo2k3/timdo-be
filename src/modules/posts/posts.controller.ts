@@ -21,6 +21,7 @@ import {
   PostServicePackageDto,
   UpdatePostDto,
 } from './dto';
+import { CreatePostCommentDto } from './dto/create-post-comment.dto';
 import { PostsService } from './posts.service';
 
 @Controller('/v1/posts')
@@ -164,5 +165,28 @@ export class PostsController {
   @UseGuards(JwtAuthGuard)
   async getBoostStats(@Req() req: JwtRequest) {
     return this.postsService.getUserBoostStats(req.user.userId);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(':id/comments')
+  async createPostComment(
+    @Param('id', ParseIntPipe) postId: number,
+    @Req() req: JwtRequest,
+    @Body() createCommentDto: CreatePostCommentDto,
+  ) {
+    return this.postsService.createPostComment(
+      postId,
+      req.user.userId,
+      createCommentDto,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Delete('comments/:id')
+  async deletePostComment(
+    @Param('id', ParseIntPipe) commentId: number,
+    @Req() req: JwtRequest,
+  ) {
+    return this.postsService.deletePostComment(commentId, req.user.userId);
   }
 }
