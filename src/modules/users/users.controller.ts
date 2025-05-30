@@ -9,9 +9,8 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
-import { Roles } from '~/common/decorators/roles.decorator';
 import { JwtRequest } from '~/common/interfaces';
-import { JwtAuthGuard, RolesGuard } from '~/modules/auth/guards';
+import { JwtAuthGuard } from '~/modules/auth/guards';
 import { FindAllUsersDto } from './dto/find-all-users.dto';
 import { UsersService } from './users.service';
 
@@ -20,15 +19,15 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(Role.ADMIN)
   async getAllUsers(@Query() findAllUsersDto: FindAllUsersDto) {
     return this.usersService.getAllUsers(findAllUsersDto);
   }
 
   @Get('stats')
-  @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  // @UseGuards(JwtAuthGuard, RolesGuard)
+  // @Roles(Role.ADMIN)
   async getUserStats() {
     return this.usersService.getUserStats();
   }
