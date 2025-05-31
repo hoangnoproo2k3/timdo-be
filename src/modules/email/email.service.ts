@@ -113,7 +113,7 @@ export class EmailService {
                 <td
                     style="padding: 28px 0; text-align: center; background-color: #ffffff; border-bottom: 2px solid #e0e0e0; display: flex; flex-direction: column; align-items: center;">
                     <div style="display: flex; align-items: center;">
-                        <img src="https://timdo.io.vn/_next/image?url=%2Fimages%2Fcuocsongxanh.png&w=48&q=75" alt="Logo"
+                        <img src="https://timdo.io.vn/_next/image?url=%2Fimages%2Flogo.png&w=48&q=75" alt="Logo"
                             style="max-width: 150px; height: auto; margin-right: 15px;">
                         <div style="text-align: left;">
                             <h2 style="font-family: Arial, sans-serif; color: #333; margin: 0;">Hệ thống tìm kiếm đồ thất
@@ -417,7 +417,7 @@ export class EmailService {
         <body>
           <div class="container">
             <div class="header">
-              <img src="https://timdo.io.vn/_next/image?url=%2Fimages%2Fcuocsongxanh.png&w=128&q=75" alt="Timdo.io.vn">
+              <img src="https://timdo.io.vn/_next/image?url=%2Fimages%2Flogo.png&w=128&q=75" alt="Timdo.io.vn">
               <h2>Yêu cầu bài viết của bạn đã bị từ chối</h2>
             </div>
             <div class="content">
@@ -494,7 +494,7 @@ export class EmailService {
                     <td
                         style="padding: 28px 0; text-align: center; background-color: #ffffff; border-bottom: 2px solid #e0e0e0; display: flex; flex-direction: column; align-items: center;">
                         <div style="display: flex; align-items: center;">
-                            <img src="https://timdo.io.vn/_next/image?url=%2Fimages%2Fcuocsongxanh.png&w=48&q=75" alt="Logo"
+                            <img src="https://timdo.io.vn/_next/image?url=%2Fimages%2Flogo.png&w=48&q=75" alt="Logo"
                                 style="max-width: 150px; height: auto; margin-right: 15px;">
                             <div style="text-align: left;">
                                 <h2 style="font-family: Arial, sans-serif; color: #333; margin: 0;">Hệ thống tìm kiếm đồ thất

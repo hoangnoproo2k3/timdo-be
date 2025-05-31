@@ -44,7 +44,7 @@ const envConfig: EnvConfig = {
   googleClientSecret: configService.get<string>('GOOGLE_CLIENT_SECRET') || '',
   googleCallbackUrl:
     configService.get<string>('GOOGLE_CALLBACK_URL') ||
-    'http://localhost:2026/api/v1/auth/google/callback',
+    'http://localhost:2026/apis/v1/auth/google/callback',
   loginRedirectUrl:
     configService.get<string>('LOGIN_REDIRECT_URL') || 'http://localhost:3000',
 
